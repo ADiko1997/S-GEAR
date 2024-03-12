@@ -1,0 +1,3 @@
+# @package _group_
+_target_: models.video_classification_time_shift.ReViT
+model_type: ReViT-b_224_p16.pth

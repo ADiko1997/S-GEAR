@@ -1,0 +1,18 @@
+# @package _group_._name_
+
+_target_: datasets.breakfast_50salads.Breakfast50Salads
+which: Breakfast
+root: ${dataset.dundeeBreakfast.common.videos_dir}
+splits_dir: ${dataset.dundeeBreakfast.common.splits_dir}
+classes_fpath: ${dataset.dundeeBreakfast.common.classes_fpath}
+is_train: true
+fold: ${dataset.dundeeBreakfast.common.fold}
+tubelets: ${dataset.dundeeBreakfast.common.tubelets}
+sample_strategy: last_clip
+annot_reader_fn: ${dataset.dundeeBreakfast.annot_reader_fn}
+embeddings_path: ${cwd}/encodings_breakfast.pth
+similarities_path: ${cwd}/similarities_breakfast.pth
+conv_to_anticipate_fn:
+  _target_: datasets.base_video_dataset.convert_to_anticipation
+  tau_a: 1.0
+  tau_o: 2.5

@@ -1,0 +1,5 @@
+# @package _group_
+# _target_: models.video_classification.TIMMModel
+_target_: models.video_classification_time_shift.TIMMModelTS
+# _target_: models.video_classification_time_shift.TIMMModelSwin
+model_type: vit_large_patch16_384

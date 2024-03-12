@@ -1,0 +1,5 @@
+# @package _group_
+# _target_: models.video_classification.TIMMModel
+_target_: models.video_classification_time_shift.ResNet101
+# _target_: models.video_classification_time_shift.TIMMModelSwin
+model_type: resnet101

@@ -1,0 +1,29 @@
+# @package _group_._name_
+
+_target_: datasets.epic_kitchens.EPICKitchens
+version: ${dataset.egtea.common.version}
+return_future_clips_too:  ${dataset.egtea.common.return_future_clips_too}
+root:
+  - ${cwd}/DATA/videos/EGTEA/101020/videos/
+annotation_path:
+  - ${dataset.egtea.common.rulstm_annot_dir}/training1.csv
+  - ${dataset.egtea.common.rulstm_annot_dir}/validation1.csv
+
+  # - ${dataset.egtea.common.rulstm_annot_dir}/training2.csv
+  # - ${dataset.egtea.common.rulstm_annot_dir}/training3.csv
+annotation_dir: ${dataset.egtea.common.rulstm_annot_dir}
+label_type: ${dataset.egtea.common.label_type}
+embeddings_path: ${cwd}/encodings_egtea.pth
+similarities_path: ${cwd}/similarities_egtea.pth
+visual_encodings_path: ${cwd}/egtea_embedding_anchors.pth
+sample_strategy: random_clip
+action_labels_fpath: ${dataset.egtea.common.rulstm_annot_dir}/actions.csv
+conv_to_anticipate_fn:
+  _target_: datasets.base_video_dataset.convert_to_anticipation
+  tau_a: ${dataset.egtea.common.tau_a}
+  tau_o: ${dataset.egtea.common.tau_o}
+  future_clip_ratios: [1.0]
+reader_fn:  # Setting it since for EGTEA I mostly use RULSTM features
+  _target_: 
+    - datasets.reader_fns.DefaultReader
+is_train: false
