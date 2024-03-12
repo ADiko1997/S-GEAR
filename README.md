@@ -180,4 +180,4 @@ This codebase is released under the license terms specified in the [LICENSE](LIC
 
 
 ## Acknowledgements
-The codebase was built on top of [`facebookresearch/AVT`](https://github.com/facebookresearch/AVT). Many thanks to [Antonino Furnari](https://github.com/fpv-iplab/rulstm) for prior work on RULSTM an the release of evaluation code.
+The codebase was built on top of [`facebookresearch/AVT`](https://github.com/facebookresearch/AVT). Many thanks to [Furnari et al.](https://github.com/fpv-iplab/rulstm) for prior work on RULSTM an the release of evaluation code.
