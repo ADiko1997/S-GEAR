@@ -1,7 +1,7 @@
 # Semantically Guided Representation Learning for Egocentric Action Anticipation
 
 
-###Environment Setup
+### Environment Setup
 We offer two alternative environments, a conda env and a docker image (the latter recommended).
 The experiments are run on 2 V100 GPU and an RTX4090. To install the codebase and set the environment execute the following command:
 ```bash
