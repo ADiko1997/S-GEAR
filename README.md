@@ -1,6 +1,6 @@
 # Semantically Guided Representation Learning for Egocentric Action Anticipation
 
-![Alt text](./Teaser_eccv.pdf)
+![Alt text](./Teaser_eccv-1.png)
 
 ### Environment Setup
 We offer two alternative environments, a conda env and a docker image (the latter recommended).
