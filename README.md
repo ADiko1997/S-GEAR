@@ -1,6 +1,6 @@
 # Semantically Guided Representation Learning for Egocentric Action Anticipation
 
-![Alt text](./Teaser_eccv.pdf)
+![Alt text](./Teaser_eccv-1.png)
 
 ### Environment Setup
 We offer two alternative environments, a conda env and a docker image (the latter recommended).
@@ -79,32 +79,17 @@ DATA
 │   │       │   ├── P01_102.MP4
 │   │       │   ├── ...
 │   │       ...
-│   ├── EGTEA/101020/videos/
-│   │   ├── OP01-R01-PastaSalad.mp4
-│   │   ...
-│   └── 50Salads/rgb/
-│       ├── rgb-01-1.avi
-│       ...
 ├── external
 │   └── rulstm
 │       └── RULSTM
-│           ├── egtea
-│           │   ├── TSN-C_3_egtea_action_CE_flow_model_best_fcfull_hd
-│           │   ...
-│           ├── data_full  # (EK55)
-│           │   ├── rgb
-│           │   ├── obj
-│           │   └── flow
 │           └── ek100_data_full
 │               ├── rgb
 │               ├── obj
 │               └── flow
 └── extracted_features
     ├── ek100
-    │   └── igm
-    │      
-    └── ek55
         └── igm
+
 ```
 
 If you use a different organization, you would need to edit the train/val
@@ -177,7 +162,7 @@ tensorboard files that you can use to visualize the training progress.
 
 For comparison to methods that use multiple modalities, you can late fuse
 predictions from multiple models using functions from `notebooks/utils.py`.
-For example, to compute the late fused performance reported in Table 1 (val)
+For example, to compute the late fused performance reported in Table 1 (d) (Val)
 (obtains 18.9 recall@5 for actions):
 
 ```python
@@ -195,4 +180,4 @@ This codebase is released under the license terms specified in the [LICENSE](LIC
 
 
 ## Acknowledgements
-The codebase was built on top of [`facebookresearch/AVT`](https://github.com/facebookresearch/AVT). Many thanks to [Antonino Furnari](https://github.com/fpv-iplab/rulstm).
+The codebase was built on top of [`facebookresearch/AVT`](https://github.com/facebookresearch/AVT). Many thanks to [Furnari et al.](https://github.com/fpv-iplab/rulstm) for prior work on RULSTM an the release of evaluation code.
