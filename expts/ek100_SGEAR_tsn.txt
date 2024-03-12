@@ -12,7 +12,7 @@ train.num_epochs=20
 train.train_one_epoch_fn.save_freq=1
 
 pre_train_path=${cwd}/OUTPUTS/expts/ek100_SGEAR_vit.txt/0/checkpoint.pth #path to the end-to-end checkpoint
-+pretrain_blocks=[ProtAttn,future_predictor,classifier,classifier]
++pretrain_blocks=[ProtAttn,future_predictor,classifier,vis_prototypes]
 pre_train=true
 
 opt.lr_wd=[[__all__,0.0001,0.00001]]

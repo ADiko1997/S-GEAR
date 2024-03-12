@@ -13,7 +13,7 @@ transductive=false
 train.train_one_epoch_fn.save_freq=1
 
 pre_train_path=${cwd}/OUTPUTS/expts/ek100_SGEAR_vit.txt/0/checkpoint.pth
-+pretrain_blocks=[CrossModAttn,future_predictor,classifier,classifier]
++pretrain_blocks=[CrossModAttn,future_predictor,classifier,vis_prototypes]
 pre_train=true
 
 opt.lr_wd=[[__all__,0.0001,0.00001]]
@@ -106,5 +106,3 @@ dataset.epic_kitchens100.common.label_type=action
 +dataset_train.conv_to_anticipate_fn.drop_style=correct
 +dataset_eval.conv_to_anticipate_fn.drop_style=correct
 
-hydra.launcher.nodes=4
-hydra.launcher.gpus_per_node=8

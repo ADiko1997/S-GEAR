@@ -42,36 +42,6 @@ from common.log import MetricLogger, setup_tbx, get_default_loggers
 from datasets.data import get_dataset
 from notebooks import utils as nb_utils
 from common.mixup import MixUp
-# from pytorchvideo.transforms import MixUp
-
-
-# _mvit_mapping = {
-#     'blocks.0' : 'stages.0.blocks.0',
-#     'blocks.1' : 'stages.0.blocks.1',
-#     'blocks.2' : 'stages.1.blocks.0',
-#     'blocks.3' : 'stages.1.blocks.1',
-#     'blocks.4' : 'stages.1.blocks.2',
-#     'blocks.5' : 'stages.2.blocks.0',
-#     'blocks.6' : 'stages.2.blocks.1',
-#     'blocks.7' : 'stages.2.blocks.2',
-#     'blocks.8' : 'stages.2.blocks.3',
-#     'blocks.9' : 'stages.2.blocks.4',
-#     'blocks.10' : 'stages.2.blocks.5',
-#     'blocks.11' : 'stages.2.blocks.6',
-#     'blocks.12' : 'stages.2.blocks.7',
-#     'blocks.13' : 'stages.2.blocks.8',
-#     'blocks.14' : 'stages.2.blocks.9',
-#     'blocks.15' : 'stages.2.blocks.10',
-#     'blocks.16' : 'stages.2.blocks.11',
-#     'blocks.17' : 'stages.2.blocks.12',
-#     'blocks.18' : 'stages.2.blocks.13',
-#     'blocks.19' : 'stages.2.blocks.14',
-#     'blocks.20' : 'stages.2.blocks.15',
-#     'blocks.21' : 'stages.3.blocks.0',
-#     'blocks.22' : 'stages.3.blocks.1',
-#     'blocks.23' : 'stages.3.blocks.2',
-# }
-
 
 
 

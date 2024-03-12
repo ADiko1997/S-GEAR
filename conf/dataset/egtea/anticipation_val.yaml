@@ -12,7 +12,6 @@ label_type: ${dataset.egtea.common.label_type}
 embeddings_path: ${cwd}/encodings_egtea.pth
 similarities_path: ${cwd}/similarities_egtea.pth
 visual_encodings_path: ${cwd}/egtea_embedding_anchors.pth
-# visual_encodings_path: ${cwd}/encodings_egtea.pth
 sample_strategy: center_clip
 action_labels_fpath: ${dataset.egtea.common.rulstm_annot_dir}/actions.csv
 conv_to_anticipate_fn:

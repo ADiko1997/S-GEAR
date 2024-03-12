@@ -4,8 +4,8 @@ import numpy as np
 import numpy 
 import torch 
 import torch.nn as nn 
-from timm.models.layers import DropPath, trunc_normal_
-
+from timm.layers import PatchEmbed, Mlp, DropPath, trunc_normal_, lecun_normal_, resample_patch_embed, \
+    resample_abs_pos_embed, RmsNorm, PatchDropout, use_fused_attn, SwiGLUPacked
 class MLP(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
         super().__init__()
@@ -525,53 +525,7 @@ class MultiScaleBlock(nn.Module):
         return x, hw_shape_new, attn_res
 
 
-
-# class CrossModAttn(nn.Module):
-#     def __init__(
-#             self,
-#             dim=768,
-#             num_heads=12,
-#             qkv_bias=False,
-#             qk_norm=False,
-#             attn_drop=0.,
-#             proj_drop=0.,
-#             norm_layer=nn.LayerNorm,
-#     ):
-#         super(CrossModAttn, self).__init__()
-#         assert dim % num_heads == 0, 'dim should be divisible by num_heads'
-#         self.num_heads = num_heads
-#         self.head_dim = dim // num_heads
-#         self.scale = self.head_dim ** -0.5
-
-#         self.x_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
-#         self.e_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
-#         self.attn_drop = nn.Dropout(attn_drop)
-#         self.proj = nn.Linear(dim, dim)
-#         self.proj_drop = nn.Dropout(proj_drop)
-
-#     def forward(self, x, mod_embeddings, batch):
-#         B, N, C = x.shape #30, 1, 768 
-#         x = x.reshape(batch, -1, C) #3, 10, 768 #mod embeddings are already in shape #3, 10, 768 i.e 3 is the batch size and 10 are the number of frames
-
-#         x = x.reshape(batch, B//batch, -1, self.num_heads, self.head_dim).permute(0, 1,  3, 2, 4) #B, T, num_heads, N, h_dim
-#         mod_embeddings = mod_embeddings.reshape(batch, B//batch, -1, self.num_heads, self.head_dim).permute(0, 1,  3, 2, 4)
-#         v = x #x will serve as value vector and query
-#         q, k = self.x_norm(x), self.e_norm(mod_embeddings) 
-
-#         q = q * self.scale
-#         attn = q @ k.transpose(-2, -1)
-
-#         attn = attn.softmax(dim=-1)
-#         attn = self.attn_drop(attn)
-#         x = attn @ v
-
-#         x = x.transpose(1, 2).reshape(B, N, C)
-#         x = self.proj(x)
-#         x = self.proj_drop(x)
-#         return x
-
-
-class CrossModAttn(nn.Module):
+class ProtAttn(nn.Module):
     def __init__(
             self,
             dim=768,
@@ -581,9 +535,10 @@ class CrossModAttn(nn.Module):
             attn_drop=0.,
             proj_drop=0.,
             norm_layer=nn.LayerNorm,
-            num_tmp_tokens=10
+            num_tmp_tokens=10,
+            cyclic=True
     ):
-        super(CrossModAttn, self).__init__()
+        super(ProtAttn, self).__init__()
         assert dim % num_heads == 0, 'dim should be divisible by num_heads'
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
@@ -595,10 +550,10 @@ class CrossModAttn(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-        self.tpl_weights = nn.Parameter(torch.ones(self.num_heads, num_tmp_tokens)*0.5)
+        self.tpl_weights = nn.Parameter(torch.ones(self.num_heads, num_tmp_tokens)*0.5) #weights to model reccurrent patterns at each subdimensional head space, this setting uses a symetric toeplitz matrix
         self.scaler = nn.Sigmoid()
         self.gate = nn.Parameter(torch.tensor([0.5]))
-        # self.toeplitz_matrix = self.toeplitz( [self.tpl_weights.shape[-1], self.tpl_weights.shape[-1]])
+        self.cyclic = cyclic
 
 
     def toeplitz(self, shape):
@@ -674,7 +629,11 @@ class CrossModAttn(nn.Module):
         attn = attn.softmax(dim=-1)
 
         toeplitz_matrix = self.toeplitz([attn.shape[-1], attn.shape[-1]])
-        cyclic_toeplitz = self.getCyclicRepresentation(toeplitz_matrix)
+
+        if self.cyclic: #enables cross head sinusoidal communication
+            cyclic_toeplitz = self.getCyclicRepresentation(toeplitz_matrix)
+        else:
+            cyclic_toeplitz = toeplitz_matrix
 
         scaling = self.scaler(self.gate)
         attn = scaling*attn + (1-scaling)*(cyclic_toeplitz)
@@ -732,3 +691,150 @@ class SelfAttention(nn.Module):
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
+    
+
+
+
+class TimeShiftAttention(nn.Module):
+    def __init__(
+            self,
+            dim=768,
+            num_heads=12,
+            qkv_bias=False,
+            qk_norm=False,
+            attn_drop=0.,
+            proj_drop=0.,
+            num_tmp_tokens:int=20,
+            norm_layer=nn.LayerNorm,
+            shift = False
+    ):
+        super(TimeShiftAttention, self).__init__()
+        assert dim % num_heads == 0, 'dim should be divisible by num_heads'
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim ** -0.5
+        self.num_tmp_tokens = num_tmp_tokens
+
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.q_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
+        self.k_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_drop)
+        self.tmp_weighting = nn.Parameter(torch.ones(num_tmp_tokens))
+        self.scaler = nn.Sigmoid()
+        self.alpha = nn.Parameter(torch.tensor([0.5]))
+        self.shift = shift
+
+    @staticmethod
+    def shift_(x, fold_div=3):
+        #Code taken from the official repository of TSM: Temporal Shift Module
+        #https://github.com/mit-han-lab/temporal-shift-module/blob/master/ops/temporal_shift.py,
+        
+        B, t, c = x.size()
+        # n_batch = nt // n_segment
+        # x = x.view(n_batch, n_segment, c, h, w)
+        fold = c // fold_div
+
+        out = torch.zeros_like(x)
+        out[:, :-1, :fold] = x[:, 1:, :fold]  # shift left
+        out[:, 1:, fold: 2 * fold] = x[:, :-1, fold: 2 * fold]  # shift right
+        out[:, :, 2 * fold:] = x[:, :, 2 * fold:]  # not shift
+
+        return out
+
+
+    def forward(self, x, batch, attn_res=None):
+        B, N, C = x.shape #30, 1, 768 
+        x = x.reshape(batch, -1, C) #3, 10, 768
+
+        if self.shift:
+            x = self.shift_(x)
+
+        qkv = self.qkv(x).reshape(batch, B//batch, -1, 3, self.num_heads, self.head_dim).permute(3, 0, 1,  4, 2, 5)
+        q, k, v = qkv.unbind(0)
+        q, k = self.q_norm(q), self.k_norm(k) 
+
+        #The tmp_v and tmp_k are create for the sole purpose of agreggating temporal context withot affecting the gradient tree (important for long sequences), is not elegant but it is functionsl
+        tmp_v = torch.cumsum(torch.mul(v.detach().permute(0, 2, 3, 4, 1), self.tmp_weighting).permute(0, 4, 1, 2, 3), dim=1) - v.detach()
+        tmp_k = torch.cumsum(torch.mul(k.detach().permute(0, 2, 3, 4, 1), self.tmp_weighting).permute(0, 4, 1, 2, 3), dim=1) - k.detach()
+
+        v = v + tmp_v
+        k = k + tmp_k
+
+        q = q * self.scale
+        attn = q @ k.transpose(-2, -1)
+
+        if attn_res:
+            scale = self.scaler(self.alpha)
+            attn = scale * attn + (1 - scale) * attn_res
+            attn_res = attn
+
+        masked_tmp = torch.tril(attn, diagonal=0) #not really needed, experimental
+        attn = masked_tmp.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+        x = attn @ v
+
+        x = x.transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x, attn_res
+
+
+
+
+class TimeShiftBlock(nn.Module):
+
+    def __init__(
+            self,
+            dim,
+            num_heads=12,
+            mlp_ratio=4.,
+            qkv_bias=False,
+            qk_norm=False,
+            proj_drop=0.,
+            attn_drop=0.,
+            init_values=None,
+            drop_path=0.,
+            act_layer=nn.GELU,
+            norm_layer=nn.LayerNorm,
+            mlp_layer=Mlp,
+            num_tmp_tokens=20,
+            shift = False
+    ):
+        super(TimeShiftBlock, self).__init__()
+        self.norm1 = norm_layer(dim)
+        self.attn = TimeShiftAttention(
+            dim,
+            num_heads=num_heads,
+            qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
+            attn_drop=attn_drop,
+            proj_drop=proj_drop,
+            norm_layer=norm_layer,
+            num_tmp_tokens=num_tmp_tokens,
+            shift=shift
+        )
+        self.ls1 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
+        self.drop_path1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+        self.norm2 = norm_layer(dim)
+        self.mlp = mlp_layer(
+            in_features=dim,
+            hidden_features=int(dim * mlp_ratio),
+            act_layer=act_layer,
+            drop=proj_drop,
+        )
+        self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
+        self.drop_path2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        # self.pos_encoder = PositionalEncoding(dim, max_len=1000)
+
+
+    def forward(self, x, batch, attn_res=None):
+        # x = self.pos_encoder(x)
+        x_prev = x 
+        x, attn_res = self.attn(self.norm1(x), batch, attn_res)
+        x = x_prev + self.drop_path1(self.ls1(x))
+        # x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x), batch)))
+        x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
+        return x, attn_res

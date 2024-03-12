@@ -9,8 +9,7 @@ import torch
 import torch.nn as nn
 import hydra
 from omegaconf import OmegaConf
-from models.video_classification_time_shift import TimeShiftBlock
-from models.attention import CrossModAttn, SelfAttention
+from models.attention import ProtAttn, SelfAttention, TimeShiftBlock
 from models.common import TopSimilarTokens
 
 CLS_MAP_PREFIX = 'cls_map_'
@@ -74,17 +73,17 @@ class BaseModel(nn.Module):
                     )
                 )
 
-        if model_cfg.mod_attn:        
+        if model_cfg.prot_attn:        
             #Create modules for CrosModalityAttention
-            self.CrossModAttn = CrossModAttn(dim=model_cfg.intermediate_featdim, num_heads=model_cfg.intermediate_featdim // 64, num_tmp_tokens=int(model_cfg.tmp_frames/self.tubelet_size))
+            self.ProtAttn = ProtAttn(dim=model_cfg.intermediate_featdim, num_heads=model_cfg.intermediate_featdim // 64, num_tmp_tokens=int(model_cfg.tmp_frames/self.tubelet_size))
         else:
-            self.CrossModAttn = nn.Identity()
+            self.ProtAttn = nn.Identity()
 
         # if mod_embeddings:
         self.mod_embeddings = mod_embeddings.requires_grad_(requires_grad=False)
         self.text_embeddings = text_embeddings.requires_grad_(requires_grad=False)
         self.future_steps = model_cfg.future_steps
-        # self.org_gamma = nn.Parameter(data=self.mod_embeddings.data, requires_grad=(not model_cfg.freeze_gamma))
+        # self.vis_prototypes = nn.Parameter(data=self.mod_embeddings.data, requires_grad=(not model_cfg.greeze_prototypes))
 
         #This prevents to downsize CSN features
         if model_cfg.intermediate_featdim != self.mod_embeddings.size(-1):
@@ -93,7 +92,7 @@ class BaseModel(nn.Module):
             target_shape = (N, model_cfg.intermediate_featdim)
             self.mod_embeddings = self.mod_embeddings.view(1, 1, N, C)
             self.mod_embeddings = torch.nn.functional.interpolate(self.mod_embeddings, size=target_shape, mode='bilinear', align_corners=False).squeeze()
-        self.org_gamma = nn.Parameter(data=self.mod_embeddings.data, requires_grad=(not model_cfg.freeze_gamma))
+        self.vis_prototypes = nn.Parameter(data=self.mod_embeddings.data, requires_grad=(not model_cfg.greeze_prototypes))
 
 
         self.sim_func = nn.CosineSimilarity(dim=-1)
@@ -336,11 +335,11 @@ class BaseModel(nn.Module):
             # now feats_agg back to 3D (B, T, F)
 
         feats_past = feats_agg
-        if self.cfg.mod_attn:
+        if self.cfg.prot_attn:
             vis_feats = vis_feats.reshape(feats_past.shape)
-            similarities_past = self.sim_func(vis_feats.unsqueeze(2), self.org_gamma)
-            sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.org_gamma.detach(), int(num_clips/self.tubelet_size), self.text_embeddings)
-            feats_past = self.temperature_scaling(self.alpha)*feats_past + (1-self.temperature_scaling(self.alpha))*self.CrossModAttn(sim_tokens, feats_past, batch_size)
+            similarities_past = self.sim_func(vis_feats.unsqueeze(2), self.vis_prototypes)
+            sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.vis_prototypes.detach(), int(num_clips/self.tubelet_size), self.text_embeddings)
+            feats_past = self.temperature_scaling(self.alpha)*feats_past + (1-self.temperature_scaling(self.alpha))*self.ProtAttn(sim_tokens, feats_past, batch_size)
 
         outputs['past_mean_representation'] = feats_past.mean(dim=1, keepdim=False)
 
@@ -358,19 +357,19 @@ class BaseModel(nn.Module):
                 _) = self.future_predictor(feats_past_, target_shape)
                 feats_future[:, -1] = feats_future_[:, -1]
 
-        if not self.cfg.mod_attn:
-            similarities_past = self.sim_func(feats_past.unsqueeze(2), self.org_gamma)
+        if not self.cfg.prot_attn:
+            similarities_past = self.sim_func(feats_past.unsqueeze(2), self.vis_prototypes)
             past_similaritie = similarities_past
         else:
-            past_similaritie = self.sim_func(feats_past.unsqueeze(2), self.org_gamma) #for classification of past instances we want the output of the temporal reasoner
+            past_similaritie = self.sim_func(feats_past.unsqueeze(2), self.vis_prototypes) #for classification of past instances we want the output of the temporal reasoner
 
         
         
         #Cosine attention on future features and prototype tokens
         outputs['future_z'] = feats_future #(B, C**) important for regularization loss
-        similarity = self.sim_func(feats_future.unsqueeze(1), self.org_gamma)
-        feats_future_ = (similarity/div).softmax(dim=-1)@self.org_gamma.detach()
-        if self.cfg.mod_attn:
+        similarity = self.sim_func(feats_future.unsqueeze(1), self.vis_prototypes)
+        feats_future_ = (similarity/div).softmax(dim=-1)@self.vis_prototypes.detach()
+        if self.cfg.prot_attn:
             feats_future = self.temperature_scaling(self.balancer)*feats_future + (1-self.temperature_scaling(self.balancer))*feats_future_
         # print(f"past features: {feats_past.shape}")
             
@@ -383,7 +382,7 @@ class BaseModel(nn.Module):
 
         # Apply a classifier on the past features, might be supervising that
         if self.cfg.classifier_on_past:
-            feats_past_ = (past_similaritie/div).softmax(dim=-1)@self.org_gamma.detach()
+            feats_past_ = (past_similaritie/div).softmax(dim=-1)@self.vis_prototypes.detach()
             feats_past = self.temperature_scaling(self.balancer)*feats_past + (1-self.temperature_scaling(self.balancer))*feats_past_
             feats_past_drop = self.dropout(feats_past)
             outputs.update(
@@ -526,9 +525,9 @@ class BaseModel(nn.Module):
         # if batch_size != target_shape[0]: #usefull when having multiple videos of the same label but with different time frames
         outputs['past_mean_representation'] = feats_past.mean(dim=1, keepdim=False) #use this for the trained architectures
         # vis_feats = vis_feats.reshape(feats_past.shape)
-        # outputs['similarities_past'] = self.sim_func(vis_feats.mean(dim=1, keepdim=False).unsqueeze(1).detach(), self.org_gamma)
-        # sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.org_gamma, int(num_clips/self.tubelet_size), self.text_embeddings)
-        # feats_past = self.temperature_scaling(self.alpha)*feats_past + (1-self.temperature_scaling(self.alpha))*self.CrossModAttn(sim_tokens, feats_past, batch_size)
+        # outputs['similarities_past'] = self.sim_func(vis_feats.mean(dim=1, keepdim=False).unsqueeze(1).detach(), self.vis_prototypes)
+        # sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.vis_prototypes, int(num_clips/self.tubelet_size), self.text_embeddings)
+        # feats_past = self.temperature_scaling(self.alpha)*feats_past + (1-self.temperature_scaling(self.alpha))*self.ProtAttn(sim_tokens, feats_past, batch_size)
 
 
 
@@ -547,17 +546,17 @@ class BaseModel(nn.Module):
                 _) = self.future_predictor(feats_past_, target_shape)
                 feats_future[:, -1] = feats_future_[:, -1]
 
-        if not self.cfg.mod_attn:
-            similarities_past = self.sim_func(feats_past.unsqueeze(2).detach(), self.org_gamma)
+        if not self.cfg.prot_attn:
+            similarities_past = self.sim_func(feats_past.unsqueeze(2).detach(), self.vis_prototypes)
             past_similaritie = similarities_past
         else:
-            past_similaritie = self.sim_func(feats_past.unsqueeze(2), self.org_gamma) #for classification of past instances we want the output of the temporal reasoner
+            past_similaritie = self.sim_func(feats_past.unsqueeze(2), self.vis_prototypes) #for classification of past instances we want the output of the temporal reasoner
 
         
         
         #Cosine attention on future features and prototype tokens
-        similarity = self.sim_func(feats_future.unsqueeze(1).detach(), self.org_gamma)
-        feats_future_ = (similarity/div).softmax(dim=-1)@self.org_gamma.detach()
+        similarity = self.sim_func(feats_future.unsqueeze(1).detach(), self.vis_prototypes)
+        feats_future_ = (similarity/div).softmax(dim=-1)@self.vis_prototypes.detach()
         feats_future = self.temperature_scaling(self.balancer)*feats_future + (1-self.temperature_scaling(self.balancer))*feats_future_
         # print(f"past features: {feats_past.shape}")
             
@@ -570,7 +569,7 @@ class BaseModel(nn.Module):
 
         # Apply a classifier on the past features, might be supervising that
         if self.cfg.classifier_on_past:
-            feats_past_ = (past_similaritie/div).softmax(dim=-1)@self.org_gamma.detach()
+            feats_past_ = (past_similaritie/div).softmax(dim=-1)@self.vis_prototypes.detach()
             feats_past = self.temperature_scaling(self.balancer)*feats_past + (1-self.temperature_scaling(self.balancer))*feats_past_
             feats_past_drop = self.dropout(feats_past)
             outputs.update(
@@ -628,8 +627,8 @@ class BaseModel(nn.Module):
             feats_past = self.mapper_to_inter(feats_past)
 
         #Apply standard scaler to match the prototype distribution
-        if self.cfg.mod_attn: #standardize features to match the prototype distribution when we use prototype attention
-            feats_past = self.standard_scaler(feats_past, self.org_gamma.detach())
+        if self.cfg.prot_attn: #standardize features to match the prototype distribution when we use prototype attention
+            feats_past = self.standard_scaler(feats_past, self.vis_prototypes.detach())
 
         
         if self.cfg.transform_features:
@@ -648,29 +647,29 @@ class BaseModel(nn.Module):
             feats_past = feats_past + random_number*feats_past_ #mixup noise
 
         outputs['past_mean_representation'] = feats_past.mean(dim=1, keepdim=False) #use this for the trained architectures
-        if self.cfg.mod_attn:
+        if self.cfg.prot_attn:
             vis_feats = feats_past
-            similarities_past = self.sim_func(vis_feats.unsqueeze(2), self.org_gamma.detach())
-            sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.org_gamma.detach(), int(num_clips/self.tubelet_size))
-            feats_past = self.temperature_scaling(self.alpha)*feats_past + (1-self.temperature_scaling(self.alpha))*self.CrossModAttn(sim_tokens, feats_past, batch_size)
+            similarities_past = self.sim_func(vis_feats.unsqueeze(2), self.vis_prototypes.detach())
+            sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.vis_prototypes.detach(), int(num_clips/self.tubelet_size))
+            feats_past = self.temperature_scaling(self.alpha)*feats_past + (1-self.temperature_scaling(self.alpha))*self.ProtAttn(sim_tokens, feats_past, batch_size)
 
 
         (feats_past, feats_future, future_losses,
          endpoints) = self.future_predictor(feats_past, target_shape)
         aux_losses.update(future_losses)
 
-        if not self.cfg.mod_attn:
-            similarities_past = self.sim_func(feats_past.unsqueeze(2).detach(), self.org_gamma)
+        if not self.cfg.prot_attn:
+            similarities_past = self.sim_func(feats_past.unsqueeze(2).detach(), self.vis_prototypes)
             past_similaritie = similarities_past
         else:
-            past_similaritie = self.sim_func(feats_past.unsqueeze(2), self.org_gamma) #for classification of past instances we want the output of the temporal reasoner
+            past_similaritie = self.sim_func(feats_past.unsqueeze(2), self.vis_prototypes) #for classification of past instances we want the output of the temporal reasoner
 
         
         
         #Cosine attention on future features and prototype tokens
         outputs['future_z'] = feats_future #(B, C**) important for regularization loss
-        similarity = self.sim_func(feats_future.unsqueeze(1).detach(), self.org_gamma)
-        feats_future_ = (similarity/div).softmax(dim=-1)@self.org_gamma
+        similarity = self.sim_func(feats_future.unsqueeze(1).detach(), self.vis_prototypes)
+        feats_future_ = (similarity/div).softmax(dim=-1)@self.vis_prototypes
         feats_future = self.temperature_scaling(self.balancer)*feats_future + (1-self.temperature_scaling(self.balancer))*feats_future_
         # print(f"past features: {feats_past.shape}")
             
@@ -683,7 +682,7 @@ class BaseModel(nn.Module):
 
         # Apply a classifier on the past features, might be supervising that
         if self.cfg.classifier_on_past:
-            feats_past_ = (past_similaritie/div).softmax(dim=-1)@self.org_gamma
+            feats_past_ = (past_similaritie/div).softmax(dim=-1)@self.vis_prototypes
             feats_past = self.temperature_scaling(self.balancer)*feats_past + (1-self.temperature_scaling(self.balancer))*feats_past_
             feats_past_drop = self.dropout(feats_past)
             outputs.update(
