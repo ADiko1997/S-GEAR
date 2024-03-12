@@ -48,8 +48,8 @@ class MLP(nn.Module):
         return self.in_features
 
 
-class AVTh(nn.Module):
-    """AVT head architecture."""
+class TCD(nn.Module):
+    """Temporal Causal Decoder architecture."""
     def __init__(
             self,
             in_features: int,

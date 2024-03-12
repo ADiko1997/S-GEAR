@@ -11,7 +11,7 @@ tubelets: ${dataset.dundee50salads.common.tubelets}
 sample_strategy: last_clip
 annot_reader_fn: ${dataset.dundee50salads.annot_reader_fn}
 embeddings_path: ${cwd}/encodings_50salads.pth
-visual_encodings_path: ${cwd}/encodings_50salads.pth
+visual_encodings_path: ${cwd}/visual_encodings_50salads.pth
 similarities_path: ${cwd}/similarities_50salads.pth
 conv_to_anticipate_fn:
   _target_: datasets.base_video_dataset.convert_to_anticipation
