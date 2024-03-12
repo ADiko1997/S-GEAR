@@ -79,32 +79,17 @@ DATA
 │   │       │   ├── P01_102.MP4
 │   │       │   ├── ...
 │   │       ...
-│   ├── EGTEA/101020/videos/
-│   │   ├── OP01-R01-PastaSalad.mp4
-│   │   ...
-│   └── 50Salads/rgb/
-│       ├── rgb-01-1.avi
-│       ...
 ├── external
 │   └── rulstm
 │       └── RULSTM
-│           ├── egtea
-│           │   ├── TSN-C_3_egtea_action_CE_flow_model_best_fcfull_hd
-│           │   ...
-│           ├── data_full  # (EK55)
-│           │   ├── rgb
-│           │   ├── obj
-│           │   └── flow
 │           └── ek100_data_full
 │               ├── rgb
 │               ├── obj
 │               └── flow
 └── extracted_features
     ├── ek100
-    │   └── igm
-    │      
-    └── ek55
         └── igm
+
 ```
 
 If you use a different organization, you would need to edit the train/val
