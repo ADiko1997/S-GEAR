@@ -37,8 +37,7 @@ finetuned from IG65M features, you can download AVT pre-extracted features
 from [here](https://dl.fbaipublicfiles.com/avt/datasets/ek100/ig65m_ftEk100_logits_10fps1s/rgb/data.mdb) into `DATA/extracted_features/ek100/igm/` or [here](https://dl.fbaipublicfiles.com/avt/datasets/ek55/ig65m_ftEk55train_logits_25fps/rgb/data.mdb) into `DATA/extracted_features/ek55/igm/`.
 
 To train S-GEAR end-to-end, you need to download the raw videos from [EPIC-Kitchens](https://data.bris.ac.uk/data/dataset/2g1n6qdydwa9u22shpxqzp0t8m). They can be organized as you wish, but this
-is how my folders are organized (since I first downloaded EK55 and then the remaining
-new videos for EK100):
+is how my folders are organized:
 
 ```
 DATA
