@@ -1,35 +1,5 @@
 # Semantically Guided Representation Learning for Egocentric Action Anticipation
 
-<p><img src="https://rohitgirdhar.github.io/DetectAndTrack/assets/cup.png" width="30px" align="center" /> Ranked <b>first</b> in the Action Anticipation task of the <a href="https://epic-kitchens.github.io/2021#results">CVPR 2021 EPIC-Kitchens Challenge</a>! (entry: AVT-FB-UT)</p>
-
-If this code helps with your work, please cite:
-
-R. Girdhar and K. Grauman. **Anticipative Video Transformer.** IEEE/CVF International Conference on Computer Vision (ICCV), 2021.
-
-```bibtex
-@inproceedings{girdhar2021anticipative,
-    title = {{Anticipative Video Transformer}},
-    author = {Girdhar, Rohit and Grauman, Kristen},
-    booktitle = {ICCV},
-    year = 2021
-}
-```
-
-## Installation
-
-The code was tested on a `Ubuntu 20.04` cluster
-with each server consisting of 8 V100 16GB GPUs.
-
-First clone the repo and set up the required packages in a conda environment.
-You might need to make minor modifications here if some packages are no longer
-available. In most cases they should be replaceable by more recent versions.
-
-```bash
-$ git clone --recursive git@github.com:facebookresearch/AVT.git
-$ conda env create -f env.yaml python=3.7.7
-$ conda activate avt
-```
-
 ### Set up RULSTM codebase
 
 If you plan to use EPIC-Kitchens datasets,
@@ -58,15 +28,15 @@ so you can also update the paths there instead.
 
 ### EPIC-Kitchens
 
-To train only the AVT-h on top of pre-extracted features, you can download the
+To train on top of pre-extracted features, you can download the
 features from RULSTM into `DATA/external/rulstm/RULSTM/data_full` for [EK55](https://github.com/fpv-iplab/rulstm/blob/master/RULSTM/scripts/download_data_ek55_full.sh) and
 `DATA/external/rulstm/RULSTM/ek100_data_full`
 for [EK100](https://github.com/fpv-iplab/rulstm/blob/master/RULSTM/scripts/download_data_ek100_full.sh).
 If you plan to train models on features extracted from a irCSN-152 model
-finetuned from IG65M features, you can download our pre-extracted features
-from [here](https://dl.fbaipublicfiles.com/avt/datasets/ek100/ig65m_ftEk100_logits_10fps1s/rgb/data.mdb) into `DATA/extracted_features/ek100/ig65m_ftEk100_logits_10fps1s/rgb/` or [here](https://dl.fbaipublicfiles.com/avt/datasets/ek55/ig65m_ftEk55train_logits_25fps/rgb/data.mdb) into `DATA/extracted_features/ek55/ig65m_ftEk55train_logits_25fps/rgb/`.
+finetuned from IG65M features, you can download AVT pre-extracted features
+from [here](https://dl.fbaipublicfiles.com/avt/datasets/ek100/ig65m_ftEk100_logits_10fps1s/rgb/data.mdb) into `DATA/extracted_features/ek100/igm/` or [here](https://dl.fbaipublicfiles.com/avt/datasets/ek55/ig65m_ftEk55train_logits_25fps/rgb/data.mdb) into `DATA/extracted_features/ek55/igm/`.
 
-To train AVT end-to-end, you need to download the raw videos from [EPIC-Kitchens](https://data.bris.ac.uk/data/dataset/2g1n6qdydwa9u22shpxqzp0t8m). They can be organized as you wish, but this
+To train S-GEAR end-to-end, you need to download the raw videos from [EPIC-Kitchens](https://data.bris.ac.uk/data/dataset/2g1n6qdydwa9u22shpxqzp0t8m). They can be organized as you wish, but this
 is how my folders are organized (since I first downloaded EK55 and then the remaining
 new videos for EK100):
 
@@ -115,32 +85,30 @@ DATA
 │               └── flow
 └── extracted_features
     ├── ek100
-    │   └── ig65m_ftEk100_logits_10fps1s
-    │       └── rgb
+    │   └── igm
+    │      
     └── ek55
-        └── ig65m_ftEk55train_logits_25fps
-            └── rgb
+        └── igm
 ```
 
 If you use a different organization, you would need to edit the train/val
-dataset files, such as [`conf/dataset/epic_kitchens100/anticipation_train.yaml`](conf/dataset/epic_kitchens100/anticipation_train.yaml). Sometimes the values are overriden
+dataset files, such as [`conf/dataset/epic_kitchens100/anticipation_train.yaml`](conf/dataset/epic_kitchens100/anticipation_train.yaml), [`conf/dataset/epic_kitchens100/anticipation_val.yaml`](conf/dataset/epic_kitchens100/anticipation_val.yaml) and [`conf/dataset/epic_kitchens100/common.yaml`](conf/dataset/epic_kitchens100/common.yaml). Sometimes the values are overriden
 in the TXT config files, so might need to change there too. The `root` property takes a list of
 folders where the videos can be found, and it will search through all of them
 in order for a given video. Note that we resized the EPIC videos to
 256px height for faster processing; you can use [`sample_scripts/resize_epic_256px.sh`](sample_scripts/resize_epic_256px.sh) script for the same.
 
-Please see [`docs/DATASETS.md`](docs/DATASETS.md) for setting up other datasets.
-
 ## Training and evaluating models
 
-If you want to train AVT models, you would need pre-trained models from
+If you want to train S-GEAR models, you would need pre-trained models from
 [`timm`](https://github.com/rwightman/pytorch-image-models/tree/8257b86550b8453b658e386498d4e643d6bf8d38).
 We have experiments that use the following models:
 
 ```bash
 $ mkdir DATA/pretrained/TIMM/
-$ wget https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_patch16_224_in21k-e5005f0a.pth -O DATA/pretrained/TIMM/jx_vit_base_patch16_224_in21k-e5005f0a.pth
-$ wget https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_p16_224-80ecf9dd.pth -O DATA/pretrained/TIMM/jx_vit_base_p16_224-80ecf9dd.pth
+$ wget https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_p16_384-83fb41ba.pth -O DATA/pretrained/TIMM/vit_base_384.pth
+$ wget https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_patch16_224_in21k-e5005f0a.pth -O DATA/pretrained/TIMM/jx_vit_base_224_in21k.pth
+$ wget https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_p16_224-80ecf9dd.pth -O DATA/pretrained/TIMM/vit_base_p16_224.pth
 ```
 
 The code uses [`hydra 1.0`](https://hydra.cc/) for configuration with [`submitit`](https://github.com/facebookincubator/submitit) plugin for jobs
@@ -150,9 +118,11 @@ configuration overrides for a specific experiment is defined by a TXT file.
 You can run a config by:
 
 ```bash
-$ python launch.py -c expts/01_ek100_avt.txt
+$ python launch.py -c expts/ek100_SGEAR_vit.txt
 ```
-where `expts/01_ek100_avt.txt` can be replaced by any TXT config file.
+where `expts/ek100_SGEAR_vit.txt` can be replaced by any TXT config file.
+For TXT files different from ek100_SGEAR_vit.txt it is required that you first train S-GEAR
+end-to-end to use the pre-trained prototypes and temporal decoder in order to reproduce results reported on the paper.
 
 By default, the launcher will launch the job to a SLURM cluster. However,
 you can run it locally using one of the following options:
@@ -178,38 +148,35 @@ tensorboard files that you can use to visualize the training progress.
 ### EPIC-Kitchens-100
 
 
-| Backbone | Head | Class-mean <br/> Recall@5 (Actions) | Config | Model |
-|----------|------|-------------------------------|--------|-----|
-| AVT-b (IN21K) | AVT-h | 14.9 | `expts/01_ek100_avt.txt` | [link](https://dl.fbaipublicfiles.com/avt/checkpoints/expts/01_ek100_avt.txt/0/checkpoint.pth)|
-| TSN (RGB) | AVT-h | 13.6 | `expts/02_ek100_avt_tsn.txt` | [link](https://dl.fbaipublicfiles.com/avt/checkpoints/expts/02_ek100_avt_tsn.txt/0/checkpoint.pth)|
-| TSN (Obj) | AVT-h | 8.7 | `expts/03_ek100_avt_tsn_obj.txt` | [link](https://dl.fbaipublicfiles.com/avt/checkpoints/expts/03_ek100_avt_tsn_obj.txt/0/checkpoint.pth)|
-| irCSN152 (IG65M) | AVT-h | 12.8 | `expts/04_ek100_avt_ig65m.txt` | [link](https://dl.fbaipublicfiles.com/avt/checkpoints/expts/04_ek100_avt_ig65m.txt/0/checkpoint.pth)|
+| Backbone | Class-mean <br/> Recall@5 (Actions) | Config | Model |
+|----------|-------------------------------|--------|-----|
+| S-GEAR [ViT] | 18.3 | `expts/ek100_SGEAR_vit.txt` | [link](TBA)|
+| S-GEAR [TSN] (RGB) | 14.9 | `expts/ek100_SGEAR_tsn.txt` | [link](TBA)|
+| S-GEAR [TSN] (Obj) | 11.4 | `expts/ek100_SGEAR_tsn_obj.txt` | [link](TBA)|
+| S-GEAR [TSN] (Flow)| 7.9 | `expts/ek100_SGEAR_tsn_flow.txt` | [link](TBA)|
+| S-GEAR (irCSN) | 13.3 | `expts/ek100_SGEAR_igm.txt` | [link](TBA)|
 
 
 ### Late fusing predictions
 
 For comparison to methods that use multiple modalities, you can late fuse
 predictions from multiple models using functions from `notebooks/utils.py`.
-For example, to compute the late fused performance reported in Table 3 (val)
-as `AVT+` (obtains 15.9 recall@5 for actions):
+For example, to compute the late fused performance reported in Table 1 (val)
+(obtains 18.9 recall@5 for actions):
 
 ```python
 from notebooks.utils import *
 CFG_FILES = [
-    ('expts/01_ek100_avt.txt', 0),
-    ('expts/03_ek100_avt_tsn_obj.txt', 0),
+    ('expts/ek100_SGEAR_vit.txt', 0),
+    ('expts/ek100_SGEAR_tsn_obj.txt', 0),
 ]
 WTS = [2.5, 0.5]
 print_accuracies_epic(get_epic_marginalize_late_fuse(CFG_FILES, weights=WTS)[0])
 ```
 
-Please see [`docs/MODELS.md`](docs/MODELS.md) for test submission and models on other datasets.
-
 ## License
-
-This codebase is released under the license terms specified in the [LICENSE](LICENSE) file. Any imported libraries, datasets or other code follows the license terms set by respective authors.
+This codebase is released under the license terms specified in the [LICENSE](LICENSE) file. Any imported libraries, datasets, or other code follows the license terms set by respective authors.
 
 
 ## Acknowledgements
-
-The codebase was built on top of [`facebookresearch/VMZ`](https://github.com/facebookresearch/VMZ). Many thanks to [Antonino Furnari](https://github.com/fpv-iplab/rulstm), [Fadime Sener](https://cg.cs.uni-bonn.de/en/publications/paper-details/sener-2020-temporal/) and [Miao Liu](https://github.com/2020aptx4869lm/Forecasting-Human-Object-Interaction-in-FPV) for help with prior work.
+The codebase was built on top of [`facebookresearch/AVT`](https://github.com/facebookresearch/AVT). Many thanks to [Antonino Furnari](https://github.com/fpv-iplab/rulstm).
