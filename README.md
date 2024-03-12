@@ -162,7 +162,7 @@ tensorboard files that you can use to visualize the training progress.
 
 For comparison to methods that use multiple modalities, you can late fuse
 predictions from multiple models using functions from `notebooks/utils.py`.
-For example, to compute the late fused performance reported in Table 1 (val)
+For example, to compute the late fused performance reported in Table 1 (d) (Val)
 (obtains 18.9 recall@5 for actions):
 
 ```python
@@ -180,4 +180,4 @@ This codebase is released under the license terms specified in the [LICENSE](LIC
 
 
 ## Acknowledgements
-The codebase was built on top of [`facebookresearch/AVT`](https://github.com/facebookresearch/AVT). Many thanks to [Antonino Furnari](https://github.com/fpv-iplab/rulstm).
+The codebase was built on top of [`facebookresearch/AVT`](https://github.com/facebookresearch/AVT). Many thanks to [Antonino Furnari](https://github.com/fpv-iplab/rulstm) for prior work on RULSTM an the release of evaluation code.
