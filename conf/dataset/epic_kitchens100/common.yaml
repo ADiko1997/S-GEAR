@@ -9,6 +9,7 @@ rulstm_feats_dir: ${cwd}/DATA/external/rulstm/RULSTM/ek100_data_full/
 annot_dir: ${cwd}/external/epic-kitchens-100-annotations/
 rulstm_annot_dir: ${cwd}/external/rulstm/RULSTM/data/ek100/
 embeddings_path: ${cwd}/encodings_epic100.pth
+visual_embeddings_path: ${cwd}/visual_encodings_epic100.pth
 similarities_path: ${cwd}/similarities_epic100.pth
 label_type: action
 tau_a: 1.0

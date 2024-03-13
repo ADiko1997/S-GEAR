@@ -14,7 +14,7 @@ rulstm_annotation_dir: ${dataset.epic_kitchens100.common.rulstm_annot_dir}  # Ne
 label_type: ${dataset.epic_kitchens100.common.label_type}
 embeddings_path: ${dataset.epic_kitchens100.common.embeddings_path}
 similarities_path: ${dataset.epic_kitchens100.common.similarities_path}
-visual_encodings_path: ${dataset.epic_kitchens100.common.embeddings_path}
+visual_encodings_path: ${dataset.epic_kitchens100.common.visual_embeddings_path}
 tubelets: ${dataset.epic_kitchens100.common.tubelets}
 sample_strategy: "random_clip"
 action_labels_fpath: ${dataset.epic_kitchens100.common.rulstm_annot_dir}/actions.csv

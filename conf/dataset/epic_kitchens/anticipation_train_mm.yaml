@@ -8,7 +8,7 @@ annotation_path:
 annotation_dir: ${dataset.epic_kitchens.common.annot_dir}
 embeddings_path: ${dataset.epic_kitchens.common.embeddings_path}
 similarities_path: ${dataset.epic_kitchens.common.similarities_path}
-visual_encodings_path: ${dataset.epic_kitchens.common.embeddings_path}
+visual_encodings_path: ${dataset.epic_kitchens.common.visual_embeddings_path}
 label_type: ${dataset.epic_kitchens.common.label_type}
 tubelets: ${dataset.epic_kitchens.common.tubelets}
 sample_strategy: "random_clip"

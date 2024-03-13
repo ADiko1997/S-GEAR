@@ -10,5 +10,6 @@ tau_a: 1.0
 tau_o: 2.5
 tubelets: 1
 embeddings_path: ${cwd}/encodings_epic55.pth
+visual_embeddings_path: ${cwd}/visual_encodings_epic55.pth
 similarities_path: ${cwd}/similarities_epic55.pth
 return_future_clips_too: false
