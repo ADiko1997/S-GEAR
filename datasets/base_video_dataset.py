@@ -678,7 +678,7 @@ class BaseVideoDataset(torch.utils.data.Dataset):
             video_frame_sec = video_frame_sec[:frames_per_clip]
             sampled_frames = sampled_frames[:frames_per_clip]
 
-        # TODO(rgirdhar): Resample the audio in the same way too..
+        # TODO: Resample the audio in the same way too..
         return (video, video_frame_sec, video_without_fps_subsample,
                 sampled_frames, info)
 

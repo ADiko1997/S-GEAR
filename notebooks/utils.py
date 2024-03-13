@@ -287,7 +287,7 @@ def compute_conf_mat(predictions, target):
                              num_classes,
                              *indices.shape[1:],
                              device=indices.device)
-        # rgirdhar: When test on test set, there will be some data points where
+        # When test on test set, there will be some data points where
         # we don't have the labels
         return onehot.scatter_(1, indices[indices >= 0].unsqueeze(1), 1)
 

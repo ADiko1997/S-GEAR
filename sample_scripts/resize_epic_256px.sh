@@ -1,8 +1,8 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 
 #!/bin/bash
-indir="/raid/data/dikoanxh/EPIC-KITCHENS/epic/train"
-outdir="/raid/data/dikoanxh/EPIC-KITCHENS/train_256/"
+indir="./EPIC-KITCHENS/epic/train"
+outdir="./EPIC-KITCHENS/train_256/"
 
 cd $indir
 videos=$(find . -iname *.MP4)
