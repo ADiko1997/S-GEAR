@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
+# Copyright (c) Facebook, Inc. and its affiliates. Modified from AVT
 
 """The Breakfast/50Salads dataset loader.
 """

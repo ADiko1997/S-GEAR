@@ -1,5 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-
 """Training code."""
 from typing import Union, Sequence
 
@@ -36,7 +34,6 @@ from omegaconf import OmegaConf
 
 # from models import base_model
 from models import base_model_ts as base_model
-# from models import base_model_ts_2 as base_model
 from common import scheduler, utils, transforms as T
 from common.log import MetricLogger, setup_tbx, get_default_loggers
 from datasets.data import get_dataset
@@ -621,8 +618,6 @@ def main(cfg):
     transform_eval = torchvision.transforms.Compose(transform_eval)
 
     # could be multiple train datasets
-    print(cfg.data_train)
-
     datasets_train = [
         get_dataset(getattr(cfg, el), cfg.data_train, transform_train, logger)
         for el in cfg.keys() if el.startswith(DATASET_TRAIN_CFG_KEY)
@@ -700,21 +695,12 @@ def main(cfg):
     }
 
     num_classes = {key: len(val) for key, val in dataset.classes.items()}
-    # cfg.train.train_one_epoch_fn.loss_wts.global_simContrast = cfg.train.train_one_epoch_fn.loss_wts.global_simContrast * num_classes['action']
     logger.info('Creating model with %s classes', num_classes)
     model = base_model.BaseModel(cfg.model,
                                  num_classes=num_classes,
                                  class_mappings=dataset.class_mappings,
-                                #  mod_embeddings=torch.tensor(list(dataset.embeddings_dict.values())).to(device))
                                  mod_embeddings=torch.stack(list(dataset.visual_embeddings_dict.values())).to(device),
                                  text_embeddings=torch.stack(list(dataset.embeddings_dict.values())).to(device))
-
-    # model = base_model.BaseModel(cfg.model,
-    #                              num_classes=num_classes,
-    #                              class_mappings=dataset.class_mappings,
-    #                              mod_embeddings=torch.stack(list(dataset.embeddings_dict.values())).to(device))
-
-
 
     logger.debug('Model: %s', model)
     if dist_info['distributed'] and cfg.sync_bn:
@@ -740,8 +726,6 @@ def main(cfg):
             else:
                 raise ValueError(f'Incorrect formatting {module_ckpt}')
             init_model(model_to_init, ckpt_path, ckpt_modules_to_keep, logger, cfg.model.from_pretrained_timm)
-
-
     model.to(device)
 
     if cfg.opt.classifier_only:
@@ -799,6 +783,7 @@ def main(cfg):
                 param.requires_grad = False
 
     if cfg.pre_train:
+        #Load pretrained weights of specific blocks
         ckpt = torch.load(cfg.pre_train_path, map_location=device)
         state_dict = ckpt['model'] 
         net_dict = model.state_dict()
@@ -807,10 +792,7 @@ def main(cfg):
         for key in cfg.pretrain_blocks:
             tmp_dict = {k: v for k, v in state_dict.items() if k in net_dict and v.shape == net_dict[k].shape and str(key) in k} 
             pretrained_dict.update(tmp_dict)
-        #pretrained_dict = state_dict
 
-
-        # pretrained_dict = {k: v for k, v in pretrained_dict.items() if 'backbone' in k}
         logger.info(f"Loading this weights from pretrained AR model: {pretrained_dict.keys()}")
         model.load_state_dict(pretrained_dict, strict=False)
         logger.info(f'Loaded pretrained weights from {cfg.pre_train_path}')
@@ -826,7 +808,6 @@ def main(cfg):
         logger.info(f'Loaded pretrained weights from {cfg.model.pretrained_detector_weights}')
 
     optimizer = hydra.utils.instantiate(cfg.opt.optimizer, params_final)
-
     # convert scheduler to be per iteration,
     # not per epoch, for warmup that lasts
     # between different epochs
@@ -888,7 +869,7 @@ def main(cfg):
                                             store_embeddings=cfg.eval.eval_fn.store_embeddings
                                             )
 
-    logger.info(f"Storing visual embeddings: {cfg.eval.eval_fn.store_embeddings}")
+    logger.info(f"Storing visual embeddings: {cfg.eval.eval_fn.store_embeddings}") #neccessary for initializing prototypes
     if cfg.test_only:
         logger.info("Starting test_only")
         hydra.utils.call(cfg.eval.eval_fn, train_eval_op, data_loaders_test,
@@ -898,7 +879,6 @@ def main(cfg):
     logger.info("Start training")
     start_time = time.time()
     accumulate_steps = cfg.opt.accumulate
-    # Get training metric logger
     stat_loggers = get_default_loggers(writer, start_epoch, logger)
     best_acc1 = 0.0
     partial_epoch = start_epoch - int(start_epoch)

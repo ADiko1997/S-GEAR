@@ -1,4 +1,4 @@
-"""ReViT and ReMViTv2  models. Modified from mvitv2 official repo."""
+"""ReViT and ReMViTv2  models. Modified from ReViT official repo."""
 
 import math
 from functools import partial

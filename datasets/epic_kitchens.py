@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
+# Copyright (c) Facebook, Inc. and its affiliates. Modified from AVT
 
 """The Epic Kitchens dataset loaders."""
 
@@ -60,6 +60,9 @@ class EPICKitchens(BaseVideoDataset):
                 a set of actions and train for action prediction, as opposed
                 to verb and noun prediction.
             annotation_dir: Where all the other annotations are typically stored
+            embeddings_path: Path to the embeddings file of text prototypes
+            similarities_path: Path to the inter-class similarities file of text prototypes
+            visual_encodings_path: Path to the visual embeddings file of visual prototypes
         """
         self.is_train = is_train
         self.version = version
@@ -115,9 +118,9 @@ class EPICKitchens(BaseVideoDataset):
                 'Did not found valid action label for %d/%d samples!',
                 num_undefined_actions, len(df))
 
+        # Load the prototypes and similarities (text)
         if similarities_path is not None:
             self.similarities_dict = torch.load(similarities_path, map_location="cpu")
-            # print(f"similarities: {self.similarities_dict}")
 
         if embeddings_path is not None:
             self.embeddings_dict = torch.load(embeddings_path, map_location="cpu")

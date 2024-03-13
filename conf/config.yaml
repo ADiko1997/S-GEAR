@@ -127,6 +127,7 @@ model:
   use_cls_mappings: false
   # Apply the classifier on the past predictions too
   classifier_on_past: false
+  mean_representation: true
 
 opt:
   # Not using an overall LR anymore, since everything is now defined per

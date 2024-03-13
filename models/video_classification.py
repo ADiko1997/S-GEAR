@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from munch import DefaultMunch
 from collections import OrderedDict
+from torchvision.models import resnet101, resnet50
 
 import yaml 
 import os
@@ -19,203 +20,13 @@ from torchvision.models.video.resnet import (
 # from pretrainedmodels import bninception
 import models.revit_model as revit_model
 import timm
+from timm.layers import PatchEmbed, Mlp, DropPath, trunc_normal_, lecun_normal_, resample_patch_embed, \
+    resample_abs_pos_embed, RmsNorm, PatchDropout, use_fused_attn, SwiGLUPacked
 from models.timm_viy import *
-
-__all__ = [
-    'r2plus1d_34',
-    'r2plus1d_152',
-    'ir_csn_152',
-    'ip_csn_152',
-    'ip_csn_50',
-    # 'BNInceptionVideo',
-]
-
-class BasicStem_Pool(nn.Sequential):
-    def __init__(self):
-        super(BasicStem_Pool, self).__init__(
-            nn.Conv3d(
-                3,
-                64,
-                kernel_size=(3, 7, 7),
-                stride=(1, 2, 2),
-                padding=(1, 3, 3),
-                bias=False,
-            ),
-            nn.BatchNorm3d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool3d(kernel_size=(1, 3, 3),
-                         stride=(1, 2, 2),
-                         padding=(0, 1, 1)),
-        )
-
-
-class Conv3DDepthwise(nn.Conv3d):
-    def __init__(self,
-                 in_planes,
-                 out_planes,
-                 midplanes=None,
-                 stride=1,
-                 padding=1):
-
-        assert in_planes == out_planes
-        super(Conv3DDepthwise, self).__init__(
-            in_channels=in_planes,
-            out_channels=out_planes,
-            kernel_size=(3, 3, 3),
-            stride=stride,
-            padding=padding,
-            groups=in_planes,
-            bias=False,
-        )
-
-    @staticmethod
-    def get_downsample_stride(stride):
-        return (stride, stride, stride)
-
-
-class IPConv3DDepthwise(nn.Sequential):
-    def __init__(self, in_planes, out_planes, midplanes, stride=1, padding=1):
-
-        assert in_planes == out_planes
-        super(IPConv3DDepthwise, self).__init__(
-            nn.Conv3d(in_planes, out_planes, kernel_size=1, bias=False),
-            nn.BatchNorm3d(out_planes),
-            # nn.ReLU(inplace=True),
-            Conv3DDepthwise(out_planes, out_planes, None, stride),
-        )
-
-    @staticmethod
-    def get_downsample_stride(stride):
-        return (stride, stride, stride)
-
-
-class Conv2Plus1D(nn.Sequential):
-    def __init__(self, in_planes, out_planes, midplanes, stride=1, padding=1):
-
-        midplanes = (in_planes * out_planes * 3 * 3 *
-                     3) // (in_planes * 3 * 3 + 3 * out_planes)
-        super(Conv2Plus1D, self).__init__(
-            nn.Conv3d(
-                in_planes,
-                midplanes,
-                kernel_size=(1, 3, 3),
-                stride=(1, stride, stride),
-                padding=(0, padding, padding),
-                bias=False,
-            ),
-            nn.BatchNorm3d(midplanes),
-            nn.ReLU(inplace=True),
-            nn.Conv3d(
-                midplanes,
-                out_planes,
-                kernel_size=(3, 1, 1),
-                stride=(stride, 1, 1),
-                padding=(padding, 0, 0),
-                bias=False,
-            ),
-        )
-
-    @staticmethod
-    def get_downsample_stride(stride):
-        return (stride, stride, stride)
-
-
-def _set_bn_params(model, bn_eps=1e-3, bn_mom=0.1):
-    """
-    Set the BN parameters to the defaults: Du's models were trained
-        with 1e-3 and 0.9 for eps and momentum resp.
-        Ref: https://github.com/facebookresearch/VMZ/blob/f4089e2164f67a98bc5bed4f97dc722bdbcd268e/lib/models/r3d_model.py#L208
-    """
-    for module in model.modules():
-        if isinstance(module, nn.BatchNorm3d):
-            module.eps = bn_eps
-            module.momentum = bn_mom
-
-
-def r2plus1d_34(pretrained=False,
-                progress=False,
-                bn_eps=1e-3,
-                bn_mom=0.1,
-                **kwargs):
-    model = _video_resnet("r2plus1d_34",
-                          False,
-                          False,
-                          block=BasicBlock,
-                          conv_makers=[Conv2Plus1D] * 4,
-                          layers=[3, 4, 6, 3],
-                          stem=R2Plus1dStem,
-                          **kwargs)
-    _set_bn_params(model, bn_eps, bn_mom)
-    return model
-
-
-def r2plus1d_152(pretrained=False,
-                 progress=False,
-                 bn_eps=1e-3,
-                 bn_mom=0.1,
-                 **kwargs):
-    model = _video_resnet("r2plus1d_152",
-                          False,
-                          False,
-                          block=Bottleneck,
-                          conv_makers=[Conv2Plus1D] * 4,
-                          layers=[3, 8, 36, 3],
-                          stem=R2Plus1dStem,
-                          **kwargs)
-    _set_bn_params(model, bn_eps, bn_mom)
-    return model
-
-
-def ir_csn_152(pretrained=False,
-               progress=False,
-               bn_eps=1e-3,
-               bn_mom=0.1,
-               **kwargs):
-    model = _video_resnet("ir_csn_152",
-                          False,
-                          False,
-                          block=Bottleneck,
-                          conv_makers=[Conv3DDepthwise] * 4,
-                          layers=[3, 8, 36, 3],
-                          stem=BasicStem_Pool,
-                          **kwargs)
-    _set_bn_params(model, bn_eps, bn_mom)
-    return model
-
-
-def ip_csn_152(pretrained=False,
-               progress=False,
-               bn_eps=1e-3,
-               bn_mom=0.1,
-               **kwargs):
-    model = _video_resnet("ip_csn_152",
-                          False,
-                          False,
-                          block=Bottleneck,
-                          conv_makers=[IPConv3DDepthwise] * 4,
-                          layers=[3, 8, 36, 3],
-                          stem=BasicStem_Pool,
-                          **kwargs)
-    _set_bn_params(model, bn_eps, bn_mom)
-    return model
-
-
-def ip_csn_50(pretrained=False,
-              progress=False,
-              bn_eps=0.3,
-              bn_mom=0.1,
-              **kwargs):
-    model = _video_resnet("ip_csn_50",
-                          False,
-                          False,
-                          block=Bottleneck,
-                          conv_makers=[IPConv3DDepthwise] * 4,
-                          layers=[3, 8, 6, 3],
-                          stem=BasicStem_Pool,
-                          **kwargs)
-    _set_bn_params(model, bn_eps, bn_mom)
-    return model
-
+from types import MethodType
+# from transformers import VivitConfig, VivitModel
+# from transformers import XCLIPVisionModel, XCLIPVisionConfig
+import math
 
 def process_each_frame(model, video, *args, **kwargs):
     """
@@ -245,26 +56,86 @@ class FrameLevelModel(nn.Module):
         return process_each_frame(self.model, video, *args, **kwargs)
 
 
-# class BNInceptionVideo(FrameLevelModel):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.model = bninception(*args, **kwargs)
-#         self.model.last_linear = nn.Identity()
-#         self.model.global_pool = nn.AdaptiveAvgPool2d(1)
+
+def forward_(self, x):
+    x = self.forward_features(x)
+    return x
 
 
-class TIMMModel(FrameLevelModel):
+class TIMMModelTS(nn.Module):
     def __init__(self,
                  num_classes,
                  model_type='vit_base_patch16_224',
                  drop_cls=True):
-        super().__init__(num_classes)
+        super(TIMMModelTS, self).__init__()
         model = timm.create_model(model_type,
                                   num_classes=0 if drop_cls else num_classes)
         self.model = model
+        self.model.forward = MethodType(forward_, self.model)
+
+    def forward(self, video, batch_size):
+        # batch_size = video.size(0)
+        # time_dim = video.size(2)
+        video_flat = video.transpose(1, 2).flatten(0, 1)
+        print(video_flat.shape)
+        return self.model(video_flat)
 
 
-# ONLY FOR REVIT
+class ResNet101(nn.Module):
+    def __init__(self,
+                num_classes,
+                 model_type='vit_base_patch16_224',
+                 drop_cls=True):
+        super(ResNet101, self).__init__()
+        model = resnet50()
+        self.model = model
+        self.model.fc = nn.Identity() 
+
+    def forward(self, video, batch_size):
+        video_flat = video.transpose(1, 2).flatten(0, 1)
+        return self.model(video_flat)
+    
+
+class TIMMModelSwin(nn.Module):
+    def __init__(self,
+                 num_classes,
+                 model_type='mvitv2_base',
+                 drop_cls=True):
+        super(TIMMModelSwin, self).__init__()
+        model = timm.create_model(model_type,
+                                  num_classes=0 if drop_cls else num_classes)
+        self.model = model
+        self.model.forward = MethodType(forward_, self.model)
+
+    def forward(self, video, batch_size):
+        batch_size = video.size(0)
+        time_dim = video.size(2)
+        video_flat = video.transpose(1, 2).flatten(0, 1)
+        return self.model(video_flat)
+
+
+class PositionalEncoding(nn.Module):
+    """For now, just using simple pos encoding from language.
+    https://pytorch.org/tutorials/beginner/transformer_tutorial.html
+    """
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float() *
+            (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x + self.pe[:x.size(0), :]
+        return self.dropout(x)
+
 
 
 __MODELS__ = [
@@ -313,31 +184,35 @@ def load_checkpoint(net, cfg, device):
 
     try:
         for k, v in checkpoint['model'].items():
-            model_state_dict[k.replace('module.', "")] = v
+            model_state_dict[k.replace('backbone.', "")] = v
     except:
         model_state_dict = checkpoint['model_state_dict']
 
     net_dict = net.state_dict()
-    pretrained_dict = {k: v for k, v in model_state_dict.items() if k in net_dict and v.shape == net_dict[k].shape}
-    net.load_state_dict(pretrained_dict, strict=False)
-    # print("Weights Loaded succesfully!!!")
+    print(net_dict.keys())
+    print(model_state_dict.keys())
+    pretrained_dict = {k: v for k, v in model_state_dict.items() if k in net_dict}
+    missing_keys, unexp_keys = net.load_state_dict(pretrained_dict, strict=False)
+    print(f"Unexpected keys: {unexp_keys}")
+    print(f"Missing keys: {missing_keys}")
+    print("Weights Loaded succesfully!!!")
 
     return 
 
-class ReViT(FrameLevelModel):
+class ReViT(nn.Module):
     def __init__(self,
                  num_classes,
-                 model_type='ReViT-b_224_p16.pth',
+                 model_type='',
                  drop_cls=True):
-        super().__init__(num_classes)
+        super(ReViT, self).__init__()
 
         with open("/home/workspace/DATA/ReViT/ReViT-b_config.yaml", 'r') as stream:
             cfg_ = yaml.safe_load(stream=stream)
         cfg_ = DefaultMunch.fromDict(cfg_)
 
-        if cfg_.MODEL.name == "ReViT":
+        if cfg_.MODEL.name == "ReMViTv2":
             model = build_ReViT(cfg_)
-            load_checkpoint(model, cfg_, "cuda")
+            # load_checkpoint(model, cfg_, "cpu")
         else:
             model = VisionTransformer(
                 img_size=224,
@@ -364,3 +239,10 @@ class ReViT(FrameLevelModel):
             )
 
         self.model = model
+
+    def forward(self, video, batch_size):
+        video_flat = video.reshape(video.shape[0], -1, video.shape[-2], video.shape[-1])
+        return self.model(video_flat, batch_size)
+
+
+

@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
+# Copyright (c) Facebook, Inc. and its affiliates. Modified from AVT
 
 """
 The overall base model.
@@ -9,8 +9,9 @@ import torch
 import torch.nn as nn
 import hydra
 from omegaconf import OmegaConf
-from models.attention import ProtAttn, SelfAttention, TimeShiftBlock
+from models.attention import ProtAttn, SelfAttention, TCA
 from models.common import TopSimilarTokens
+
 
 CLS_MAP_PREFIX = 'cls_map_'
 PAST_LOGITS_PREFIX = 'past_'
@@ -32,41 +33,34 @@ class BaseModel(nn.Module):
             for name, child in list(_backbone_full.named_children(
             ))[:-model_cfg.backbone_last_n_modules_to_drop]:
                 self.backbone.add_module(name, child)
-
         else:
             self.backbone = _backbone_full
 
-
-        # for name, param in self.backbone.named_parameters():
-        #     param.requires_grad = False
-        # Map the (B, T', H', W', C') -> (B, T', H', W', C*)
-        # to the intermediate feature dimensions
-        # IMP: this is only used if C' != C*
 
         if (model_cfg.backbone_last_n_modules_to_drop == 0
                 and 'output_dim' in dir(self.backbone)):
             backbone_dim = self.backbone.output_dim
         else:
-            backbone_dim = model_cfg.backbone_dim  # TODO: Figure automatically
+            backbone_dim = model_cfg.backbone_dim 
 
-
+        #freeze backbone weights
         if model_cfg.freeze_weights:
             self.backbone.requires_grad_(requires_grad=False)
             
+        #neccessary when using 3d backbone transformer ViViT
         if model_cfg.model_name.strip() == 'vivit': #spatio-temporal tokens
             self.tubelet_size = model_cfg.tubelet_size
-
         else:
             self.tubelet_size = 1
 
         self.cls_token = model_cfg.cls_token
-        #Build TimeShift Module
-        self.TimeShift = None
+        #Build TCA Module
+        self.TCA = None
         if model_cfg.backbone_add_ts_blocks != 0:
-            self.TimeShift = nn.ModuleList()
+            self.TCA = nn.ModuleList()
             for _ in range(model_cfg.backbone_add_ts_blocks):
-                self.TimeShift.append(
-                    TimeShiftBlock(
+                self.TCA.append(
+                    TCA(
                         dim = model_cfg.backbone_dim,
                         num_heads = model_cfg.backbone_dim // 64,
                         num_tmp_tokens = int(model_cfg.tmp_frames/self.tubelet_size)
@@ -74,20 +68,20 @@ class BaseModel(nn.Module):
                 )
 
         if model_cfg.prot_attn:        
-            #Create modules for CrosModalityAttention
+            #Create modules for Prototype Attention
             self.ProtAttn = ProtAttn(dim=model_cfg.intermediate_featdim, num_heads=model_cfg.intermediate_featdim // 64, num_tmp_tokens=int(model_cfg.tmp_frames/self.tubelet_size))
         else:
             self.ProtAttn = nn.Identity()
+        self.mean_representation = model_cfg.mean_representation
 
-        # if mod_embeddings:
+        # if mod_embeddings (mod_embeddings represent visual emebeddings) and text_embeddings (text embeddings) are provided
         self.mod_embeddings = mod_embeddings.requires_grad_(requires_grad=False)
         self.text_embeddings = text_embeddings.requires_grad_(requires_grad=False)
         self.future_steps = model_cfg.future_steps
         # self.vis_prototypes = nn.Parameter(data=self.mod_embeddings.data, requires_grad=(not model_cfg.greeze_prototypes))
 
-        #This prevents to downsize CSN features
+        #This prevents to downsize CSN/TSN features, however we usually prefer to downsize them and keep prototypes dimension unchanged
         if model_cfg.intermediate_featdim != self.mod_embeddings.size(-1):
-            # print("embeddings shape, ", self.mod_embeddings.shape)
             N, C = self.mod_embeddings.size()
             target_shape = (N, model_cfg.intermediate_featdim)
             self.mod_embeddings = self.mod_embeddings.view(1, 1, N, C)
@@ -96,12 +90,12 @@ class BaseModel(nn.Module):
 
 
         self.sim_func = nn.CosineSimilarity(dim=-1)
-        # self.scaler = nn.Sigmoid()
         self.balancer = nn.Parameter(data=torch.tensor([0.5]), requires_grad=True)
         self.top_similar_fn = TopSimilarTokens()
         self.alpha = nn.Parameter(torch.Tensor([0.5]))
         self.temperature_scaling = nn.Sigmoid()
 
+        #To not be confused with regularization loss, it refers to regresion features for self-supervised learning
         if model_cfg.reg:
             self.reg_features = model_cfg.reg
         else:
@@ -141,6 +135,7 @@ class BaseModel(nn.Module):
             in_features=temp_agg_output_dim,
             _recursive_=False)
         
+        #if we want to freeze the future predictor
         if model_cfg.freeze_future_predictor:
             self.future_predictor.requires_grad_(requires_grad=False)
         
@@ -181,7 +176,6 @@ class BaseModel(nn.Module):
                                         in_features=cls_input_dim,
                                         out_features=cls_dim)
             })
-            # self.classifiers[cls_type].requires_grad_(requires_grad=model_cfg.train_cls)
 
         # Store the class mappings as buffers
         for (src, dst), mapping in class_mappings.items():
@@ -193,7 +187,7 @@ class BaseModel(nn.Module):
         if model_cfg.add_regression_head:
             self.regression_head = nn.Linear(cls_input_dim, 1)
 
-        if model_cfg.multimodal:
+        if model_cfg.multimodal: #designed for multimodality, not stable yet
             self.multimodal_attn = SelfAttention(
                     dim=model_cfg.intermediate_featdim, 
                     num_heads=8, qkv_bias=True, 
@@ -202,12 +196,10 @@ class BaseModel(nn.Module):
             self.modality_balancer = nn.Parameter(data=torch.tensor([0.5]), requires_grad=True)
             
 
-
+        #Transform extracted features into the same dimension as the multimodal features in case of object features
         if model_cfg.extracted_features and model_cfg.use_object:
             self.transform = nn.Linear(352, model_cfg.intermediate_featdim)
 
-        if model_cfg.freeze_future_predictor:
-            self.future_predictor.requires_grad_(requires_grad=False)
         
         if model_cfg.transform_features:
             self.transform_features = nn.Sequential(
@@ -227,6 +219,7 @@ class BaseModel(nn.Module):
         self._set_bn_params(model_cfg.bn.eps, model_cfg.bn.mom)
         self.cfg = model_cfg
         self.future_steps = 4
+
 
     def _initialize_weights(self):
         # Copied over from
@@ -271,6 +264,7 @@ class BaseModel(nn.Module):
         batch_size = video.size(0)
         num_clips = video.size(1)
         div = torch.sqrt(torch.tensor(self.cfg.backbone_dim)).to(video.device)
+
         # Fold the clips dimension into the batch for feature extraction, upto
         # temporal aggregation
         video = video.flatten(0, 1)
@@ -283,12 +277,11 @@ class BaseModel(nn.Module):
 
 
         outputs['backbone'] = feats.squeeze()    
-        # print(f"backbone shape: {outputs['backbone'].shape}")
 
-        # Apply the timeshift module
-        if self.TimeShift:
+        # Apply the TCA module
+        if self.TCA:
             attn_res = None
-            for blk in self.TimeShift:
+            for blk in self.TCA:
                 feats, attn_res = blk(feats, batch_size, attn_res)
 
         if self.cls_token:
@@ -335,12 +328,15 @@ class BaseModel(nn.Module):
             # now feats_agg back to 3D (B, T, F)
 
         feats_past = feats_agg
+        #Apply prototype attention
         if self.cfg.prot_attn:
             vis_feats = vis_feats.reshape(feats_past.shape)
             similarities_past = self.sim_func(vis_feats.unsqueeze(2), self.vis_prototypes)
-            sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.vis_prototypes.detach(), int(num_clips/self.tubelet_size), self.text_embeddings)
+            if self.mean_representation:
+                sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.vis_prototypes.detach(), int(num_clips/self.tubelet_size))
+            else:
+                sim_tokens = self.top_similar_fn(vis_feats, self.vis_prototypes.detach(), self.tubelet_size)
             feats_past = self.temperature_scaling(self.alpha)*feats_past + (1-self.temperature_scaling(self.alpha))*self.ProtAttn(sim_tokens, feats_past, batch_size)
-
         outputs['past_mean_representation'] = feats_past.mean(dim=1, keepdim=False)
 
         # Now the future prediction, also it might update the past features
@@ -369,10 +365,8 @@ class BaseModel(nn.Module):
         outputs['future_z'] = feats_future #(B, C**) important for regularization loss
         similarity = self.sim_func(feats_future.unsqueeze(1), self.vis_prototypes)
         feats_future_ = (similarity/div).softmax(dim=-1)@self.vis_prototypes.detach()
-        if self.cfg.prot_attn:
-            feats_future = self.temperature_scaling(self.balancer)*feats_future + (1-self.temperature_scaling(self.balancer))*feats_future_
-        # print(f"past features: {feats_past.shape}")
-            
+        feats_future = self.temperature_scaling(self.balancer)*feats_future + (1-self.temperature_scaling(self.balancer))*feats_future_
+
         outputs.update(endpoints)
         outputs['similarities'] = similarity
         outputs['similarities_past'] = similarities_past
@@ -422,6 +416,7 @@ class BaseModel(nn.Module):
             video (torch.Tensor, Bx#clipsxCxTxHxW)
             target_shape: The shape of the target. Some of these layers might
                 be able to use this information.
+        NOT STABLE YET
         """
         outputs = {}
         aux_losses = {}
@@ -429,11 +424,10 @@ class BaseModel(nn.Module):
         #separete multimodal features from raw videos
         feats_rulstm = video[1].squeeze()
         video = video[0]
+        div = torch.sqrt(torch.tensor(self.cfg.backbone_dim)).to(video.device)
 
-        # print(f"feats_rulstm shape: {feats_rulstm[:, :, 2048:].shape}")
-        # print(f"video shape: {video.shape}")
+
         if self.cfg.use_object:
-
             if feats_rulstm.ndim == 2:
                 feats_rulstm = feats_rulstm.unsqueeze(dim=0)
 
@@ -459,16 +453,12 @@ class BaseModel(nn.Module):
             feats = self.backbone(video)
         except:
             feats = self.backbone(video, batch_size)
-
-        
-
-
         outputs['backbone'] = feats.squeeze()    
 
-        # Apply the timeshift module
-        if self.TimeShift:
+        # Apply the TCA module
+        if self.TCA:
             attn_res = None
-            for blk in self.TimeShift:
+            for blk in self.TCA:
                 feats, attn_res = blk(feats, batch_size, attn_res)
 
         if self.cls_token:
@@ -524,11 +514,11 @@ class BaseModel(nn.Module):
 
         # if batch_size != target_shape[0]: #usefull when having multiple videos of the same label but with different time frames
         outputs['past_mean_representation'] = feats_past.mean(dim=1, keepdim=False) #use this for the trained architectures
-        # vis_feats = vis_feats.reshape(feats_past.shape)
-        # outputs['similarities_past'] = self.sim_func(vis_feats.mean(dim=1, keepdim=False).unsqueeze(1).detach(), self.vis_prototypes)
-        # sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.vis_prototypes, int(num_clips/self.tubelet_size), self.text_embeddings)
-        # feats_past = self.temperature_scaling(self.alpha)*feats_past + (1-self.temperature_scaling(self.alpha))*self.ProtAttn(sim_tokens, feats_past, batch_size)
-
+        if self.cfg.prot_attn:
+            vis_feats = vis_feats.reshape(feats_past.shape)
+            outputs['similarities_past'] = self.sim_func(vis_feats.mean(dim=1, keepdim=False).unsqueeze(1).detach(), self.vis_prototypes)
+            sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.vis_prototypes, int(num_clips/self.tubelet_size))
+            feats_past = self.temperature_scaling(self.alpha)*feats_past + (1-self.temperature_scaling(self.alpha))*self.ProtAttn(sim_tokens, feats_past, batch_size)
 
 
         # Now the future prediction, also it might update the past features
@@ -635,10 +625,6 @@ class BaseModel(nn.Module):
             feats_past = feats_past + self.transform_features(feats_past)
             # feats_past = self.transform_features(feats_past)
 
-        #Apply multimodal attention in case of multimodal extracted features
-        if self.cfg.multimodal:
-            feats_past = self.multimodal_attention(None, feats_past)
-
 
         if self.train and self.cfg.feature_mixup:
             #mixup features
@@ -650,7 +636,10 @@ class BaseModel(nn.Module):
         if self.cfg.prot_attn:
             vis_feats = feats_past
             similarities_past = self.sim_func(vis_feats.unsqueeze(2), self.vis_prototypes.detach())
-            sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.vis_prototypes.detach(), int(num_clips/self.tubelet_size))
+            if self.mean_representation:
+                sim_tokens = self.top_similar_fn(vis_feats.mean(dim=1, keepdim=False), self.vis_prototypes.detach(), int(num_clips/self.tubelet_size))
+            else:
+                sim_tokens = self.top_similar_fn(vis_feats, self.vis_prototypes.detach(), self.tubelet_size)
             feats_past = self.temperature_scaling(self.alpha)*feats_past + (1-self.temperature_scaling(self.alpha))*self.ProtAttn(sim_tokens, feats_past, batch_size)
 
 
@@ -671,7 +660,6 @@ class BaseModel(nn.Module):
         similarity = self.sim_func(feats_future.unsqueeze(1).detach(), self.vis_prototypes)
         feats_future_ = (similarity/div).softmax(dim=-1)@self.vis_prototypes
         feats_future = self.temperature_scaling(self.balancer)*feats_future + (1-self.temperature_scaling(self.balancer))*feats_future_
-        # print(f"past features: {feats_past.shape}")
             
         outputs.update(endpoints)
         outputs['similarities'] = similarity
@@ -714,6 +702,7 @@ class BaseModel(nn.Module):
         
 
         return outputs, aux_losses
+    
 
     def translation(self, feats):
         """
@@ -739,6 +728,7 @@ class BaseModel(nn.Module):
         random_seed = torch.randn((feats.shape)).to(feats.device)
         feats = feats + random_seed
         return feats
+    
 
     @staticmethod
     def shift_tensor(tensor, fill_value=0):
@@ -761,6 +751,7 @@ class BaseModel(nn.Module):
         else:
             result = tensor.clone()
         return result
+    
 
     @staticmethod
     def shift_time(tensor, fill_value=0):
@@ -794,6 +785,7 @@ class BaseModel(nn.Module):
         drop = torch.randint(low=0, high=int(tensor.size(0)/4), size=(1,)).item()
         result[drop:] = tensor[drop:]
         return result
+    
 
     @staticmethod
     def standard_scaler(tensor, dist):
@@ -823,56 +815,6 @@ class BaseModel(nn.Module):
                     src_tensor, mapper)
         return outputs
 
-    
-    def multimodal_attention(self, feats, rulstm_feats):
-        #compute multimodal self-attention given the modalities
-        if feats is not None:
-            if feats.ndim == 2:
-                rulstm_feats = rulstm_feats.reshape(feats.shape[0], -1)
-            else:
-                rulstm_feats = rulstm_feats.reshape(feats.shape[0], feats.shape[1], -1)
-
-            # print(f"feats shape: {feats.shape}")
-            # print(f"rulstm_feats shape: {rulstm_feats.shape}")
-            
-            feats_cat = torch.cat([feats, rulstm_feats], dim=-1)
-            # print(f"feats_cat shape: {feats_cat.shape}")
-            attn_score = self.multimodal_attn(feats_cat)
-            mod_1 = rulstm_feats[:, :, :1024] #mod are concatenated in the last dimension (rgn + flow)
-            if self.cfg.num_modalities == 2:
-                mod_2 = rulstm_feats[:, :, 1024:]
-                attn_score = attn_score.reshape(feats.size(0), feats.size(1), int(feats_cat.size(-1)/feats.size(-1)))
-                attn_score = attn_score.softmax(dim=-1)
-                feats = attn_score[:, :, 0].unsqueeze(2)*feats + attn_score[:, :, 1].unsqueeze(2)*mod_1 + attn_score[:, :, 2].unsqueeze(2)*mod_2
-
-            elif self.cfg.num_modalities == 3:
-                mod_2 = rulstm_feats[:, :, 1024:2048] # flow
-                mod_3 = rulstm_feats[:, :, 2048:] # object
-
-                attn_score = attn_score.reshape(feats.size(0), feats.size(1), int(feats_cat.size(-1)/feats.size(-1)))
-                attn_score = attn_score.softmax(dim=-1)
-                feats = attn_score[:, :, 0].unsqueeze(2)*feats + attn_score[:, :, 1].unsqueeze(2)*mod_1 + attn_score[:, :, 2].unsqueeze(2)*mod_2 + attn_score[:, :, 3].unsqueeze(2)*mod_3
-
-        else:
-            feats = rulstm_feats
-            attn_score = self.multimodal_attn(feats)
-            mod_0 = rulstm_feats[:, :, :1024] #mod are concatenated in the last dimension (rgn + flow)
-            if self.cfg.num_modalities == 2:
-                mod_1 = rulstm_feats[:, :, 1024:]
-                attn_score = attn_score.reshape(feats.size(0), feats.size(1), int(feats_cat.size(-1)/feats.size(-1)))
-                attn_score = attn_score.softmax(dim=-1)
-                feats = attn_score[:, :, 0].unsqueeze(2)*mod_0 + attn_score[:, :, 1].unsqueeze(2)*mod_1
-
-            elif self.cfg.num_modalities == 3:
-                mod_2 = rulstm_feats[:, :, 1024:2048] # flow
-                mod_3 = rulstm_feats[:, :, 2048:] # object
-
-                attn_score = attn_score.reshape(feats.size(0), feats.size(1), int(feats_cat.size(-1)/feats.size(-1)))
-                attn_score = attn_score.softmax(dim=-1)
-                feats = attn_score[:, :, 0].unsqueeze(2)*feats + attn_score[:, :, 1].unsqueeze(2)*mod_1 + attn_score[:, :, 2].unsqueeze(2)*mod_2 + attn_score[:, :, 3].unsqueeze(2)*mod_3
-
-
-        return feats
 
 
     def forward(self, video, epoch, *args, **kwargs):
@@ -899,25 +841,16 @@ class BaseModel(nn.Module):
 
         if self.cfg.multimodal:
             feats_losses = [
-                self.forward_singlecrop_multimodal(video_crops, *args, **kwargs)
+                self.forward_singlecrop_multimodal(video_crops, *args, **kwargs) #multimodal (not stable yet)
             ]
 
         elif self.cfg.extracted_features:
-            if self.training:
-                # video_crops[0] = self.shift_time(video_crops[0], fill_value=0)
-                # video_crops[0] = self.drop_samples(video_crops[0])
-
-                feats_losses = [
-                    self.forward_singlecrop_features(video_crops[0], *args, **kwargs)
+            feats_losses = [
+                    self.forward_singlecrop_features(video_crops[0], *args, **kwargs) #extracted features
                 ]
-            else:
-                feats_losses = [
-                    self.forward_singlecrop_features(video_crops[0], *args, **kwargs)
-                ]
-
         else:
             feats_losses = [
-                self.forward_singlecrop(el, *args, **kwargs) for el in video_crops
+                self.forward_singlecrop(el, *args, **kwargs) for el in video_crops #single crop rgb videos
             ]
 
         feats, losses = zip(*feats_losses)

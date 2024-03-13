@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
+# Copyright (c) Facebook, Inc. and its affiliates. Modified from AVT
 
 """The base dataset loader."""
 
@@ -681,56 +681,6 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         # TODO(rgirdhar): Resample the audio in the same way too..
         return (video, video_frame_sec, video_without_fps_subsample,
                 sampled_frames, info)
-
-    # def _get_video(self, df_row):
-    #     # While we only need the absolute path for certain reader_fns, worth
-    #     # doing it for all since some might still need it to read fps etc.
-    #     # print(f"df_row keys: {df_row.keys()}")
-    #     video_path = get_abs_path(self.root, df_row['video_path'])
-    #     fps = self.reader_fn.get_frame_rate(video_path)
-    #     video_dict = {}
-    #     (video, video_frame_sec, video_without_fps_subsample,
-    #      frames_subsampled,
-    #      info) = self._sample(video_path, fps, df_row['start'], df_row['end'],
-    #                           df_row, self.frames_per_clip, self.frame_rate,
-    #                           self.sample_strategy, self.reader_fn, self.rng, self.is_train)
-    #     if 'audio_fps' not in info:
-    #         # somehow this is missing is some elts.. it causes issues with
-    #         # batching... anyway not using it so this is fine
-    #         info['audio_fps'] = 0
-    #     # Assuming no temporal transformation is done here (except moving the
-    #     # dimension around), so no need to change the video_frame_sec
-    #     video = self._apply_vid_transform(video)
-    #     video_dict['video'] = video
-    #     if self.return_unsampled_video:
-    #         video_without_fps_subsample = self._apply_vid_transform(
-    #             video_without_fps_subsample)
-    #         video_dict[
-    #             'video_without_fps_subsample'] = video_without_fps_subsample
-    #         video_dict['video_frames_subsampled'] = frames_subsampled
-    #     # Using video.size(-3) since at test there is a #crops dimension too
-    #     # in the front, so from back it will always work
-    #     assert video_frame_sec.size(0) == video.size(-3), (
-    #         'nothing should have changed temporally')
-    #     video_dict['video_frame_sec'] = video_frame_sec
-    #     video_dict['video_info'] = info
-    #     if self.return_future_clips_too:
-    #         assert 'orig_start' in df_row, 'Has to be anticipation data'
-    #         nfutures = len([
-    #             el for el in df_row.keys() if el.startswith(FUTURE_PREFIX)
-    #         ]) // 2  # Since start and end for each
-    #         for future_id in range(nfutures):
-    #             video_future, _, _, _, _ = self._sample(
-    #                 video_path, fps,
-    #                 df_row[f'{FUTURE_PREFIX}_{future_id}_start'],
-    #                 df_row[f'{FUTURE_PREFIX}_{future_id}_end'], df_row,
-    #                 self.frames_per_clip, self.frame_rate,
-    #                 self.sample_strategy_future, self.reader_fn, self.rng, self.is_train)
-    #             video_future = self._apply_vid_transform(video_future)
-    #             video_dict[f'{FUTURE_PREFIX}_{future_id}_video'] = video_future
-    #     video_dict['start'] = df_row['start']
-    #     video_dict['end'] = df_row['end']
-    #     return video_dict
 
 
     def _get_video(self, df_row):

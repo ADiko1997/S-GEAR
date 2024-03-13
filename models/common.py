@@ -108,6 +108,9 @@ class TopSimilarTokens(nn.Module):
             x (torch.Tensor, (B, C)): feature vector
             mod_embeddings (torch.tensor, (N, C)): embedding tokens of a different modality
             k (int): number of top indices to select
+            text_embeddings (torch.tensor, (N, C)): embedding tokens of text modality
+            reverse (bool): if True, returns least similar tokens instead of most similar
+
         Returns:
             mod_tokens (torch.Tensor): most similar embedding tokens of mod for each feature vector
         """
@@ -117,14 +120,9 @@ class TopSimilarTokens(nn.Module):
             B, C = x.shape
             x = x.unsqueeze(dim=1)
             mod_embeddings = mod_embeddings.unsqueeze(dim=0)
-
-
         else:
             B, _, C = x.shape
             x = x.unsqueeze(dim=2)
-
-        # x = x.unsqueeze(dim=1)
-        # mod_embeddings = mod_embeddings.unsqueeze(dim=0)
 
         #Compute cosine similarity, similarities will be of shape (B, N)
         similarities = self.sim_fn(x, mod_embeddings)
@@ -143,6 +141,4 @@ class TopSimilarTokens(nn.Module):
             mod_tokens = torch.index_select(mod_embeddings.squeeze(0), 0, top_k_val_inds.indices.view(-1))
 
         mod_tokens = mod_tokens.reshape(-1, B, C).permute(1, 0, 2)
-        # print(f"mod tokens shape: {mod_tokens.shape}")
-
         return mod_tokens

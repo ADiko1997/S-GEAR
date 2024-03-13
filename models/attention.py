@@ -6,6 +6,9 @@ import torch
 import torch.nn as nn 
 from timm.layers import PatchEmbed, Mlp, DropPath, trunc_normal_, lecun_normal_, resample_patch_embed, \
     resample_abs_pos_embed, RmsNorm, PatchDropout, use_fused_attn, SwiGLUPacked
+from models.timm_viy import *
+
+
 class MLP(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
         super().__init__()
@@ -525,6 +528,8 @@ class MultiScaleBlock(nn.Module):
         return x, hw_shape_new, attn_res
 
 
+
+
 class ProtAttn(nn.Module):
     def __init__(
             self,
@@ -695,7 +700,7 @@ class SelfAttention(nn.Module):
 
 
 
-class TimeShiftAttention(nn.Module):
+class TCAttention(nn.Module):
     def __init__(
             self,
             dim=768,
@@ -708,7 +713,7 @@ class TimeShiftAttention(nn.Module):
             norm_layer=nn.LayerNorm,
             shift = False
     ):
-        super(TimeShiftAttention, self).__init__()
+        super(TCAttention, self).__init__()
         assert dim % num_heads == 0, 'dim should be divisible by num_heads'
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
@@ -783,7 +788,7 @@ class TimeShiftAttention(nn.Module):
 
 
 
-class TimeShiftBlock(nn.Module):
+class TCA(nn.Module):
 
     def __init__(
             self,
@@ -802,9 +807,9 @@ class TimeShiftBlock(nn.Module):
             num_tmp_tokens=20,
             shift = False
     ):
-        super(TimeShiftBlock, self).__init__()
+        super(TCA, self).__init__()
         self.norm1 = norm_layer(dim)
-        self.attn = TimeShiftAttention(
+        self.attn = TCAttention(
             dim,
             num_heads=num_heads,
             qkv_bias=qkv_bias,
