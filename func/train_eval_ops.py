@@ -1,4 +1,4 @@
-# This file contains the basic train and eval ops for the models. Modified from AVT
+# Modified from AVT
 """
 Modular implementation of the basic train ops
 """

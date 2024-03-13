@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates. Modified from AVT
+#Modified from AVT
 
 """The base dataset loader."""
 

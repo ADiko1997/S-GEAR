@@ -1,29 +1,9 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-
 
 """Cross entropy loss, that works with multi-dim input."""
 import torch
 import torch.nn as nn
 from common.cluster import KmeansAssigner
 from typing import Dict, Sequence, Union
-
-
-# class MultiDimCrossEntropy(nn.CrossEntropyLoss):
-#     def forward(self, inp, tgt, *args, **kwargs):
-#         """
-#         Args:
-#             inp: (*, C)
-#             tgt: (*, )
-#             Will reshape the flatten initial dimensions and then incur loss
-#         """
-#         assert inp.ndim == tgt.ndim + 1
-#         assert inp.shape[:-1] == tgt.shape
-#         res = super().forward(inp.reshape(-1, inp.size(-1)), tgt.reshape(
-#             (-1, )), *args, **kwargs)
-#         if torch.numel(res) == torch.numel(tgt):
-#             # Reduction was not done, so reshape back to orig shape
-#             res = res.reshape(tgt.shape)
-#         return res
 
 
 
@@ -40,7 +20,6 @@ class MultiDimCrossEntropy(nn.CrossEntropyLoss):
             one_hot: whether the labels are already one-hotted
             ignore_index: index of inputs to be ignored
         """
-        # print(f" Output shape: {inp.shape} Labels shape: {tgt.shape}  Ignore Index: {ignore_index}")
         
         # if one_hot:
         #     if inp.ndim == tgt.ndim + 1: #In case of fine graned labeling

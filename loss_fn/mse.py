@@ -1,5 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-
 """Variants of MSE loss."""
 import torch.nn as nn
 

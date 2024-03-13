@@ -17,6 +17,22 @@ You should build either docker or conda environment. Additionally, we release pr
 $ docker pull xxxx-xxx/xxxx:xxx
 ```
 
+## Generate Prototypes
+
+S-GEARis oreiented on using prototyes to define action semantic relationships. Specifically there are two types of prototypes, language prototypes and visual prototypes. The former are fixed and generated through Sentence Transformer executing the following commands:
+```bash
+$ python3 generate_lang_prototypes.py --dataset epic100 --label_file {relative_path_to}/actions_epic100.csv
+
+```
+This commmand will generate a file named encodings_epic100.pth and similarities_epic100.pth which than has to be set in the config files i.e., [`conf/dataset/epic_kitchens100/common.yaml`](conf/dataset/epic_kitchens100/common.yaml) or other corresponding config files in conf/dataset/epic_kitchens100. The same procedure can be used for all datasets with dataset keywords in [epic55, epic100, egdea, 50Salads].
+For visual prototypes on the other hand one has to first train the network for action recognition as follows:
+```bash
+$ python launch.py -c expts/ek100_SGEAR_vit_AR.txt -l
+```
+Afterward, the file [expts/ek100_SGEAR_vit_AR.txt](expts/ek100_SGEAR_vit_AR.txt) has to be modified setting the flag eval.store_embeddings=True, eval.store_embeddings_path={relative_path_to}/file.pth and run the above command as following:
+```bash
+$ python launch.py -c expts/ek100_SGEAR_vit_AR.txt -l -t
+``` 
 ### Set up RULSTM codebase
 
 If you plan to use EPIC-Kitchens datasets,

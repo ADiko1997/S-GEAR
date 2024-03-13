@@ -1,4 +1,4 @@
-"""Training code."""
+"""Training code. Modified from AVT"""
 from typing import Union, Sequence
 
 import datetime

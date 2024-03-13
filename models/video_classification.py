@@ -1,5 +1,5 @@
 """
-Model architectures.
+Model architectures. Modified from AVT
 """
 
 
