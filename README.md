@@ -29,10 +29,11 @@ For visual prototypes on the other hand one has to first train the network for a
 ```bash
 $ python launch.py -c expts/ek100_SGEAR_vit_AR.txt -l
 ```
-Afterward, the file [expts/ek100_SGEAR_vit_AR.txt](expts/ek100_SGEAR_vit_AR.txt) has to be modified setting the flag eval.store_embeddings=True, eval.store_embeddings_path=${cwd}/{file}.pth and run the above command as following:
+Afterward, the file [expts/ek100_SGEAR_vit_AR.txt](expts/ek100_SGEAR_vit_AR.txt) has to be modified setting the flag eval.store_embeddings=True, eval.store_embeddings_path=${cwd}/{file}.pth and run the following command:
 ```bash
 $ python launch.py -c expts/ek100_SGEAR_vit_AR.txt -l -t
 ``` 
+You can select from which split to extract the prototypes modifying the data_val variable in the TXT file.
 ### Set up RULSTM codebase
 
 If you plan to use EPIC-Kitchens datasets,
