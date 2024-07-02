@@ -1,6 +1,6 @@
 # Semantically Guided Representation Learning for Egocentric Action Anticipation
 
-Paper[link](Comming_Soon)
+Paper: [link](Comming_Soon)
 
 
 ![Alt text](./Teaser_eccv-1.png)
