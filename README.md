@@ -2,6 +2,7 @@
 
 Paper: [link](Comming_Soon)
 
+Weights are coming soon; please contact [diko@di.uniroma1.it](diko@di.uniroma1.it) if you need them sooner.
 
 ![Alt text](./Teaser_eccv-1.png)
 
