@@ -6,15 +6,15 @@
 We offer two alternative environments, a conda env and a docker image (the latter recommended).
 The experiments are run on 2 V100 GPU and an RTX4090. To install the codebase and set the environment execute the following command:
 ```bash
-$ git clone xxxx-xxxxx {repo_name_to_be_anounced_upon_acceptance}
-$ cd xxxx-xxxx/Docker
+$ git clone git@github.com:ADiko1997/S-GEAR.git
+$ cd S-GEAR/Docker
 $ docker built -f ./Dockerfile -t {user}/{repo}:{tag} .
 $ conda env create -f env.yaml python=3.8
 $ conda activate sgear
 ```
 You should build either docker or conda environment. Additionally, we release pre-compiled docker image that can be obtaine using the following command:
 ```bash
-$ docker pull xxxx-xxx/xxxx:xxx
+$ docker pull diko1997/dlenv:v1.0
 ```
 
 ## Generate Prototypes
