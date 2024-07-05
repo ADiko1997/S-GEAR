@@ -1,6 +1,6 @@
 # Semantically Guided Representation Learning for Egocentric Action Anticipation
 
-Paper: [link](!https://arxiv.org/html/2407.02309v1)
+Paper: [link](https://arxiv.org/html/2407.02309v1)
 
 Weights are coming soon; please contact [diko@di.uniroma1.it](diko@di.uniroma1.it) if you need them sooner.
 
