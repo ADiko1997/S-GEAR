@@ -1,6 +1,6 @@
 # Semantically Guided Representation Learning for Egocentric Action Anticipation
 
-Paper: [link](Comming_Soon)
+Paper: [link]([Comming_Soon](https://arxiv.org/html/2407.02309v1))
 
 Weights are coming soon; please contact [diko@di.uniroma1.it](diko@di.uniroma1.it) if you need them sooner.
 
@@ -12,7 +12,7 @@ The experiments are run on 2 V100 GPU and an RTX4090. To install the codebase an
 ```bash
 $ git clone git@github.com:ADiko1997/S-GEAR.git
 $ cd S-GEAR/Docker
-$ docker built -f ./Dockerfile -t {user}/{repo}:{tag} .
+$ docker build -f ./Dockerfile -t {user}/{repo}:{tag} .
 $ conda env create -f env.yaml python=3.8
 $ conda activate sgear
 ```
