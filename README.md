@@ -196,6 +196,15 @@ WTS = [2.5, 0.5]
 print_accuracies_epic(get_epic_marginalize_late_fuse(CFG_FILES, weights=WTS)[0])
 ```
 
+```BibTeX
+@article{diko2024semantically,
+  title={Semantically Guided Representation Learning For Action Anticipation},
+  author={Diko, Anxhelo and Avola, Danilo and Prenkaj, Bardh and Fontana, Federico and Cinque, Luigi},
+  journal={arXiv preprint arXiv:2407.02309},
+  year={2024}
+}
+```
+
 ## License
 This codebase is released under the license terms specified in the [LICENSE](LICENSE) file. Any imported libraries, datasets, or other code follows the license terms set by respective authors.
 
