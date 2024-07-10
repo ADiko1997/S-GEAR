@@ -195,7 +195,7 @@ CFG_FILES = [
 WTS = [2.5, 0.5]
 print_accuracies_epic(get_epic_marginalize_late_fuse(CFG_FILES, weights=WTS)[0])
 ```
-##Cite BibTex
+## Cite BibTex
 If you find our work useful, cite through the following BibText
 ```
 @article{diko2024semantically,
