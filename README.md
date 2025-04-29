@@ -1,5 +1,8 @@
 # Semantically Guided Representation Learning for Egocentric Action Anticipation
 
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/semantically-guided-representation-learning/action-anticipation-on-epic-kitchens-100)](https://paperswithcode.com/sota/action-anticipation-on-epic-kitchens-100?p=semantically-guided-representation-learning)
+
+
 Paper: [link](https://arxiv.org/html/2407.02309v1)
 
 Weights are coming soon; please contact [diko@di.uniroma1.it](diko@di.uniroma1.it) if you need them sooner.
